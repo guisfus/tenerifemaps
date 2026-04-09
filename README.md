@@ -1,19 +1,19 @@
 # Tenerife Maps
 
-Interactive bilingual map viewer for public GeoJSON datasets from Tenerife.
+Tenerife Maps is a bilingual web application for exploring public GeoJSON datasets from Tenerife through a map-first interface.
 
-Tenerife Maps turns open geospatial datasets into a searchable, filterable, map-first interface designed to make local resources, businesses, services, and infrastructure easier to explore.
+It combines open geospatial data, client-side filtering, synchronized map and table views, and CSV export into a single lightweight frontend built with Vue and Leaflet.
 
-## Features
+## Highlights
 
-- Interactive Leaflet map with marker clustering
-- Dataset switcher with multiple Tenerife open-data sources
+- Interactive map with marker clustering
+- Multiple Tenerife open-data datasets
 - Text, municipality, activity, and contact filters
-- Synchronized map, detail panel, and inventory table
-- CSV export for the currently visible result set
-- Spanish and English interface
+- Synchronized selection between map, detail panel, and inventory
+- CSV export for the currently visible results
+- Spanish and English user interface
 
-## Tech Stack
+## Stack
 
 - Vue 3
 - TypeScript
@@ -23,32 +23,44 @@ Tenerife Maps turns open geospatial datasets into a searchable, filterable, map-
 - Leaflet
 - Leaflet MarkerCluster
 
-## How It Works
+## Getting Started
 
-Each dataset is fetched as GeoJSON, normalized into a shared internal record shape, and then rendered through a unified UI.
+### Requirements
 
-The application uses a small server-side proxy endpoint for dataset requests so the frontend can work with external open-data sources without running into browser CORS restrictions.
+- Node.js 20+
+- npm
 
-## Data Sources
-
-The data comes from public GeoJSON datasets published through `datos.tenerife.es`.
-
-## Local Development
+### Install dependencies
 
 ```bash
 npm install
+```
+
+### Start the development server
+
+```bash
 npm run dev
 ```
 
-The development server usually runs on `http://localhost:5173`.
+Vite will print the local development URL in the terminal.
 
-## Production Build
+### Create a production build
 
 ```bash
 npm run build
 ```
 
-The production output is generated in `dist/`.
+The production output is written to `dist/`.
+
+## How It Works
+
+The application loads public Tenerife GeoJSON datasets, normalizes them into a shared internal record model, and renders them through a unified map and inventory interface.
+
+To keep the frontend compatible with external open-data sources, dataset requests are routed through a small server-side proxy endpoint before being processed in the browser.
+
+## Data Source
+
+All datasets used by the application are published through `datos.tenerife.es`.
 
 ## Project Structure
 
@@ -70,7 +82,7 @@ src/
   types.ts                 # Shared types
 ```
 
-## Documentation
+## Technical Documentation
 
 - `docs/ARCHITECTURE.md`
 - `docs/DATA_FLOW.md`
