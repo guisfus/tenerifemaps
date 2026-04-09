@@ -1,4 +1,4 @@
-import { fetchDatasetPayload } from '../src/server/datasetProxy'
+import { fetchDatasetPayload } from '../src/server/datasetProxy.js'
 
 // Minimal serverless wrapper used by Vercel in production. The actual fetch and
 // validation logic lives in `src/server/datasetProxy.ts` so development and

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
-import { fetchDatasetPayload } from './src/server/datasetProxy'
+import { fetchDatasetPayload } from './src/server/datasetProxy.js'
 
 // Mirrors the production `/api/dataset` endpoint during local development so the
 // frontend can always call the same URL regardless of environment.

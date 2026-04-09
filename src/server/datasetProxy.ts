@@ -1,4 +1,4 @@
-import { DATASETS } from '../data/datasets'
+import { DATASETS } from '../data/datasets.js'
 
 type DatasetProxySuccess = {
   status: 200
