@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { fetchDatasetPayload } from './src/server/datasetProxy.js'
-import { getDatasetSummariesPayload, getLocationsPayload, parseLocationsQuery } from './src/server/locations.js'
+import { getCsvExportPayload, getDatasetSummariesPayload, getLocationsPayload, parseLocale, parseLocationsQuery } from './src/server/locations.js'
 
 // Mirrors the production API endpoints during local development so the frontend
 // can always call the same URLs regardless of environment.
@@ -64,6 +64,23 @@ function datasetProxyPlugin() {
           }
 
           response.end(JSON.stringify({ error: result.error }))
+          return
+        }
+
+        if (url.pathname === '/api/export') {
+          const result = await getCsvExportPayload(parseLocationsQuery(url.searchParams), parseLocale(url.searchParams))
+
+          if (result.status !== 200) {
+            response.statusCode = result.status
+            response.setHeader('Content-Type', 'application/json; charset=utf-8')
+            response.end(JSON.stringify({ error: result.error }))
+            return
+          }
+
+          response.statusCode = 200
+          response.setHeader('Content-Type', result.contentType)
+          response.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
+          response.end(result.payload)
           return
         }
 

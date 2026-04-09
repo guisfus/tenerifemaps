@@ -2,23 +2,23 @@
 
 ## Overview
 
-Tenerife Maps is a mostly static application built with Vue 3 and TypeScript. The UI runs entirely in the browser, while a very small server-side proxy layer fetches remote GeoJSON datasets so the frontend can avoid browser CORS restrictions.
+Tenerife Maps is a backend-driven geospatial web application built with Vue 3 and TypeScript on the frontend and Vercel Functions on the server side.
 
-The project intentionally avoids backend coupling. Almost all business logic lives in the browser and is organized in a small number of files with clear responsibilities. The server-side part is limited to relaying approved dataset requests.
+The browser is responsible for presentation and interaction. The server is responsible for dataset retrieval, normalization, filtering, sorting, pagination, summary generation, and CSV export.
 
 ## Main Modules
 
 ### `src/App.vue`
 
-Acts as the composition root for the application.
+Acts as the UI composition root.
 
 Responsibilities:
 
-- hold UI state
-- load the active dataset
-- derive filtered and sorted results
-- keep selection consistent between map and inventory
-- prepare CSV export
+- hold visible UI state
+- build query parameters from the current controls
+- request paginated results from the backend
+- request dataset summary data
+- keep selection consistent between map, detail panel, and inventory
 - pass plain props down to visual components
 
 ### `src/components/LeafletMap.vue`
@@ -29,89 +29,112 @@ Responsibilities:
 
 - create the map instance
 - render clustered markers
+- keep the view constrained to the Canary Islands area
 - reflect current selection visually
 - emit selected record ids back to the parent
-- invalidate map size when the layout changes
 
 ### `src/services/geojson.ts`
 
-Data normalization layer.
+Frontend API client.
 
 Responsibilities:
 
-- fetch remote GeoJSON
-- call the local dataset proxy endpoint
-- cache one normalized payload per dataset
-- sanitize inconsistent source values
-- map raw source properties into `LocationRecord`
+- call `/api/locations`
+- call `/api/summary`
+- build the export URL for `/api/export`
+- normalize HTTP errors for the UI layer
 
 ### `src/server/datasetProxy.ts`
 
-Shared proxy logic used by development and production.
+Server-side upstream fetch layer.
 
 Responsibilities:
 
-- validate incoming dataset keys
-- resolve the upstream dataset URL from the static catalog
-- fetch GeoJSON on the server side
-- return a small typed success or error result
+- validate dataset keys
+- resolve remote source URLs from the static catalog
+- fetch raw GeoJSON from `datos.tenerife.es`
+- return a typed success or failure result
 
-### `api/dataset.ts`
+### `src/server/locations.ts`
 
-Minimal Vercel function wrapper.
+Server-side query layer.
 
 Responsibilities:
 
-- read the `key` query parameter
-- delegate fetch logic to `src/server/datasetProxy.ts`
-- return JSON with cache headers in production
+- normalize GeoJSON into `LocationRecord`
+- cache normalized datasets in memory when possible
+- apply text and categorical filters
+- apply sorting and pagination
+- prepare map items independently from paginated table items
+- generate dataset summary payloads
+- generate CSV exports
+
+### `api/locations.ts`
+
+Primary list endpoint.
+
+Responsibilities:
+
+- parse query parameters
+- call the server-side query layer
+- return paginated items, map items, filter options, and pagination metadata
+
+### `api/summary.ts`
+
+Dataset summary endpoint.
+
+Responsibilities:
+
+- aggregate record counts for every configured dataset
+- return chart-ready summary data to the frontend
+
+### `api/export.ts`
+
+CSV export endpoint.
+
+Responsibilities:
+
+- reuse the same server-side query rules as the list endpoint
+- return the filtered result set as a downloadable CSV file
 
 ### `src/data/datasets.ts`
 
-Static catalog of datasets exposed by the product.
+Static dataset catalog.
 
 Responsibilities:
 
 - define available datasets
-- provide bilingual titles and descriptions
-- centralize source URLs
-
-### `src/i18n.ts`
-
-Central store for product copy in Spanish and English.
+- provide bilingual labels and descriptions
+- centralize remote source URLs
 
 ## Design Decisions
 
 ### Single normalization model
 
-The app converts every GeoJSON feature into `LocationRecord`. This keeps rendering code independent from upstream property names and makes future dataset additions predictable.
+All raw GeoJSON features are converted into `LocationRecord`. This isolates the UI from upstream field names and keeps the rest of the application stable even if new datasets are added.
 
-### Client-side filtering and sorting
+### Backend-driven querying
 
-Once a dataset is fetched through the proxy, all interactions happen in memory. For the current dataset sizes this keeps the experience immediate and avoids repeated network requests.
+Filtering, sorting, pagination, summary generation, and export all happen server-side. This keeps the frontend light and makes the application easier to scale as datasets grow.
 
-### Shared selection model
+### Separate map and table payloads
 
-Map, detail panel and inventory all depend on `selectedId`. This prevents each view from holding competing notions of what is selected.
+The list endpoint returns paginated table items and a separate marker list for the map. This keeps the inventory scalable without forcing the map to render only one page of data.
 
-### Separate map component
+### Thin frontend client
 
-Leaflet is isolated from the main view logic so DOM-driven map behavior does not leak into the rest of the application.
-
-### Thin server proxy
-
-The proxy layer accepts only known dataset keys from `src/data/datasets.ts`. This keeps the deployment compatible with Vercel, avoids exposing arbitrary upstream fetching, and preserves a single source of truth for data sources.
+The browser is treated as a rendering layer. It owns interaction state, but not core data processing.
 
 ## Extension Points
 
 ### Add new filters
 
-Add state and conditions in `App.vue` inside `filteredLocations`.
+Extend `LocationsQuery` and the filtering logic in `src/server/locations.ts`, then wire the new controls in `App.vue`.
 
 ### Add new source fields
 
-Extend `LocationRecord` in `src/types.ts` and map the new fields in `src/services/geojson.ts`.
+Extend `LocationRecord` in `src/types.ts` and map the new fields in `src/server/locations.ts`.
 
-### Replace chart implementation
+### Add alternate outputs
 
-The current chart consumes a simple `{ key, label, value }` structure. A richer chart library can be introduced without touching dataset loading.
+New endpoints can reuse the same query and normalization layer to expose JSON, CSV, or future reporting views without duplicating dataset logic.

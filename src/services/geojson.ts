@@ -1,14 +1,15 @@
-import type { DatasetDefinition, DatasetSummary, LocationRecord, SortKey } from '../types'
+import type { DatasetDefinition, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
 type SortDirection = 'asc' | 'desc'
 
 type LocationsResponse = {
   items: LocationRecord[]
-  total: number
+  mapItems: LocationRecord[]
   municipalities: string[]
   activities: string[]
   fetchedAt: string
+  pagination: PaginationMeta
 }
 
 type SummaryResponse = {
@@ -22,6 +23,8 @@ type DatasetRequestOptions = {
   contact: ContactFilter
   sort: SortKey
   direction: SortDirection
+  page: number
+  pageSize: number
 }
 
 async function readResponse<T>(response: Response) {
@@ -53,6 +56,8 @@ export async function fetchDatasetLocations(dataset: DatasetDefinition, options:
     contact: options.contact,
     sort: options.sort,
     direction: options.direction,
+    page: String(options.page),
+    pageSize: String(options.pageSize),
   })
 
   const response = await fetch(`/api/locations?${searchParams.toString()}`)
@@ -62,4 +67,21 @@ export async function fetchDatasetLocations(dataset: DatasetDefinition, options:
 export async function fetchDatasetSummaries() {
   const response = await fetch('/api/summary')
   return readResponse<SummaryResponse>(response)
+}
+
+export function buildDatasetExportUrl(dataset: DatasetDefinition, options: DatasetRequestOptions, locale: string) {
+  const searchParams = new URLSearchParams({
+    dataset: dataset.key,
+    search: options.search,
+    municipality: options.municipality,
+    activity: options.activity,
+    contact: options.contact,
+    sort: options.sort,
+    direction: options.direction,
+    page: '1',
+    pageSize: String(options.pageSize),
+    locale,
+  })
+
+  return `/api/export?${searchParams.toString()}`
 }

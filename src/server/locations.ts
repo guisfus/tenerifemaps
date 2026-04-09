@@ -1,6 +1,6 @@
 import { DATASETS } from '../data/datasets.js'
 import { fetchDatasetPayload } from './datasetProxy.js'
-import type { DatasetDefinition, DatasetSummary, LocationRecord, SortKey } from '../types'
+import type { DatasetDefinition, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
 
 type Feature = {
   properties?: Record<string, unknown>
@@ -15,20 +15,27 @@ type GeoJsonResponse = {
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
 type SortDirection = 'asc' | 'desc'
+type LocaleCode = 'es' | 'en'
 
 type DatasetCacheEntry = {
   fetchedAt: string
   items: LocationRecord[]
 }
 
+type Failure = {
+  status: 400 | 404 | 502
+  error: string
+}
+
 type LocationsSuccess = {
   status: 200
   payload: {
     items: LocationRecord[]
-    total: number
+    mapItems: LocationRecord[]
     municipalities: string[]
     activities: string[]
     fetchedAt: string
+    pagination: PaginationMeta
   }
   cacheControl: string
 }
@@ -41,9 +48,11 @@ type SummarySuccess = {
   cacheControl: string
 }
 
-type Failure = {
-  status: 400 | 404 | 502
-  error: string
+type ExportSuccess = {
+  status: 200
+  payload: string
+  filename: string
+  contentType: string
 }
 
 export type LocationsQuery = {
@@ -54,13 +63,20 @@ export type LocationsQuery = {
   contact: ContactFilter
   sort: SortKey
   direction: SortDirection
+  page: number
+  pageSize: number
 }
 
 export type LocationsResult = LocationsSuccess | Failure
 export type DatasetSummariesResult = SummarySuccess | Failure
+export type CsvExportResult = ExportSuccess | Failure
 
 const datasetCache = new Map<string, DatasetCacheEntry>()
 const collator = new Intl.Collator('es', { sensitivity: 'base' })
+const CACHE_CONTROL = 'public, s-maxage=86400, stale-while-revalidate=604800'
+const MAX_PAGE_SIZE = 100
+const DEFAULT_PAGE_SIZE = 25
+const MAX_MAP_ITEMS = 2000
 
 function cleanValue(value: unknown) {
   if (value === null || value === undefined || value === '' || value === 'null' || value === 0 || value === '0') {
@@ -175,6 +191,25 @@ function applySorting(items: LocationRecord[], query: LocationsQuery) {
   })
 }
 
+function buildPagination(total: number, page: number, pageSize: number): PaginationMeta {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const safePage = Math.min(Math.max(1, page), pageCount)
+
+  return {
+    total,
+    page: safePage,
+    pageSize,
+    pageCount,
+    hasPreviousPage: safePage > 1,
+    hasNextPage: safePage < pageCount,
+  }
+}
+
+function paginateItems(items: LocationRecord[], pagination: PaginationMeta) {
+  const offset = (pagination.page - 1) * pagination.pageSize
+  return items.slice(offset, offset + pagination.pageSize)
+}
+
 function parseSort(value: string | null): SortKey {
   return value === 'municipality' || value === 'address' || value === 'reference' || value === 'activityType' ? value : 'name'
 }
@@ -187,6 +222,37 @@ function parseContact(value: string | null): ContactFilter {
   return value === 'withContact' || value === 'withoutContact' ? value : 'all'
 }
 
+function parsePositiveInteger(value: string | null, fallback: number) {
+  const parsed = Number.parseInt(value ?? '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function escapeCsv(value: string) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`
+}
+
+function getCsvHeaders(locale: LocaleCode) {
+  if (locale === 'es') {
+    return ['Nombre', 'Municipio', 'Direccion', 'Referencia', 'Contacto', 'Sitio web']
+  }
+
+  return ['Name', 'Municipality', 'Address', 'Reference', 'Contact', 'Website']
+}
+
+function buildCsv(items: LocationRecord[], locale: LocaleCode) {
+  const headers = getCsvHeaders(locale)
+  const rows = items.map((item) => [
+    item.name,
+    item.municipality,
+    item.address,
+    item.reference,
+    [item.phone, item.email].filter(Boolean).join(' / '),
+    item.website,
+  ])
+
+  return [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n')
+}
+
 export function parseLocationsQuery(searchParams: URLSearchParams): LocationsQuery {
   return {
     dataset: searchParams.get('dataset') ?? '',
@@ -196,7 +262,13 @@ export function parseLocationsQuery(searchParams: URLSearchParams): LocationsQue
     contact: parseContact(searchParams.get('contact')),
     sort: parseSort(searchParams.get('sort')),
     direction: parseDirection(searchParams.get('direction')),
+    page: parsePositiveInteger(searchParams.get('page'), 1),
+    pageSize: Math.min(parsePositiveInteger(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE),
   }
+}
+
+function parseLocale(searchParams: URLSearchParams): LocaleCode {
+  return searchParams.get('locale') === 'en' ? 'en' : 'es'
 }
 
 async function getNormalizedDataset(dataset: DatasetDefinition): Promise<DatasetCacheEntry | Failure> {
@@ -221,7 +293,7 @@ async function getNormalizedDataset(dataset: DatasetDefinition): Promise<Dataset
   return entry
 }
 
-export async function getLocationsPayload(query: LocationsQuery): Promise<LocationsResult> {
+async function resolveDataset(query: LocationsQuery): Promise<{ dataset: DatasetDefinition; entry: DatasetCacheEntry } | Failure> {
   if (!query.dataset) {
     return {
       status: 400,
@@ -238,25 +310,48 @@ export async function getLocationsPayload(query: LocationsQuery): Promise<Locati
     }
   }
 
-  const datasetResult = await getNormalizedDataset(dataset)
+  const entry = await getNormalizedDataset(dataset)
 
-  if ('error' in datasetResult) {
-    return datasetResult
+  if ('error' in entry) {
+    return entry
   }
 
-  const filteredItems = applySorting(applyFilters(datasetResult.items, query), query)
-  const options = getOptions(datasetResult.items)
+  return { dataset, entry }
+}
+
+function queryDatasetItems(entry: DatasetCacheEntry, query: LocationsQuery) {
+  const filteredItems = applySorting(applyFilters(entry.items, query), query)
+  const pagination = buildPagination(filteredItems.length, query.page, query.pageSize)
+
+  return {
+    filteredItems,
+    tableItems: paginateItems(filteredItems, pagination),
+    mapItems: filteredItems.slice(0, MAX_MAP_ITEMS),
+    pagination,
+    options: getOptions(entry.items),
+  }
+}
+
+export async function getLocationsPayload(query: LocationsQuery): Promise<LocationsResult> {
+  const resolved = await resolveDataset(query)
+
+  if ('error' in resolved) {
+    return resolved
+  }
+
+  const result = queryDatasetItems(resolved.entry, query)
 
   return {
     status: 200,
     payload: {
-      items: filteredItems,
-      total: filteredItems.length,
-      municipalities: options.municipalities,
-      activities: options.activities,
-      fetchedAt: datasetResult.fetchedAt,
+      items: result.tableItems,
+      mapItems: result.mapItems,
+      municipalities: result.options.municipalities,
+      activities: result.options.activities,
+      fetchedAt: resolved.entry.fetchedAt,
+      pagination: result.pagination,
     },
-    cacheControl: 'public, s-maxage=86400, stale-while-revalidate=604800',
+    cacheControl: CACHE_CONTROL,
   }
 }
 
@@ -280,6 +375,25 @@ export async function getDatasetSummariesPayload(): Promise<DatasetSummariesResu
   return {
     status: 200,
     payload: { items },
-    cacheControl: 'public, s-maxage=86400, stale-while-revalidate=604800',
+    cacheControl: CACHE_CONTROL,
   }
 }
+
+export async function getCsvExportPayload(query: LocationsQuery, locale: LocaleCode): Promise<CsvExportResult> {
+  const resolved = await resolveDataset(query)
+
+  if ('error' in resolved) {
+    return resolved
+  }
+
+  const filteredItems = queryDatasetItems(resolved.entry, { ...query, page: 1, pageSize: MAX_PAGE_SIZE }).filteredItems
+
+  return {
+    status: 200,
+    payload: buildCsv(filteredItems, locale),
+    filename: `${resolved.dataset.key}-${locale}.csv`,
+    contentType: 'text/csv; charset=utf-8',
+  }
+}
+
+export { parseLocale }

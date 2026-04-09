@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import BarChart from './components/BarChart.vue'
 import LeafletMap from './components/LeafletMap.vue'
 import { DATASETS, getDatasetPresentation } from './data/datasets'
-import { fetchDatasetLocations, fetchDatasetSummaries } from './services/geojson'
+import { buildDatasetExportUrl, fetchDatasetLocations, fetchDatasetSummaries } from './services/geojson'
 import type { DatasetSummary, LocationRecord, SortKey } from './types'
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
@@ -23,13 +23,18 @@ const loading = ref(false)
 const chartLoading = ref(false)
 const errorMessage = ref('')
 const lastUpdated = ref('')
-const locations = ref<LocationRecord[]>([])
+const tableLocations = ref<LocationRecord[]>([])
+const mapLocations = ref<LocationRecord[]>([])
 const datasetSummaries = ref<DatasetSummary[]>([])
 const municipalityOptions = ref<string[]>([])
 const activityOptions = ref<string[]>([])
 const sortKey = ref<SortKey>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 const theme = ref<ThemeMode>('dark')
+const page = ref(1)
+const pageSize = ref(25)
+const totalResults = ref(0)
+const pageCount = ref(1)
 let searchDebounce: number | null = null
 let suppressQueryReload = false
 
@@ -37,12 +42,15 @@ let suppressQueryReload = false
 // switch sources without changing the rendering logic.
 const currentDataset = computed(() => DATASETS.find((dataset) => dataset.key === activeDatasetKey.value) ?? DATASETS[0])
 const datasetPresentation = computed(() => getDatasetPresentation(currentDataset.value, locale.value))
+const pageSizeOptions = [25, 50, 100]
 
 const hasActiveFilters = computed(() => search.value || selectedMunicipality.value !== 'all' || selectedActivity.value !== 'all' || contactFilter.value !== 'all')
-const selectedLocation = computed(() => locations.value.find((location) => location.id === selectedId.value) ?? null)
-const municipalitiesCount = computed(() => new Set(locations.value.map((item) => item.municipality).filter(Boolean)).size)
-const activityCount = computed(() => new Set(locations.value.map((item) => item.activityType).filter(Boolean)).size)
+const selectedLocation = computed(() => mapLocations.value.find((location) => location.id === selectedId.value) ?? tableLocations.value.find((location) => location.id === selectedId.value) ?? null)
+const municipalitiesCount = computed(() => new Set(mapLocations.value.map((item) => item.municipality).filter(Boolean)).size)
+const activityCount = computed(() => new Set(mapLocations.value.map((item) => item.activityType).filter(Boolean)).size)
 const isLightTheme = computed(() => theme.value === 'light')
+const currentRangeStart = computed(() => (totalResults.value ? (page.value - 1) * pageSize.value + 1 : 0))
+const currentRangeEnd = computed(() => Math.min(page.value * pageSize.value, totalResults.value))
 const chartItems = computed(() =>
   datasetSummaries.value.map((item) => ({
     key: item.key,
@@ -147,43 +155,24 @@ function resetFilters() {
   contactFilter.value = 'all'
   sortKey.value = 'name'
   sortDirection.value = 'asc'
+  page.value = 1
   suppressQueryReload = false
 }
 
-// CSV export reuses the current filtered subset so the downloaded file always
-// matches what the user is looking at on screen.
-function escapeCsv(value: string) {
-  const normalized = String(value ?? '')
-  return `"${normalized.replaceAll('"', '""')}"`
-}
-
 function exportCsv() {
-  const headers = [
-    t('table.columns.name'),
-    t('table.columns.municipality'),
-    t('table.columns.address'),
-    t('table.columns.reference'),
-    t('table.columns.contact'),
-    t('details.website'),
-  ]
-
-  const lines = locations.value.map((item) => [
-    item.name,
-    item.municipality,
-    item.address,
-    item.reference,
-    [item.phone, item.email].filter(Boolean).join(' / '),
-    item.website,
-  ])
-
-  const csv = [headers, ...lines].map((row) => row.map(escapeCsv).join(',')).join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
+  const url = buildDatasetExportUrl(currentDataset.value, {
+    search: search.value,
+    municipality: selectedMunicipality.value,
+    activity: selectedActivity.value,
+    contact: contactFilter.value,
+    sort: sortKey.value,
+    direction: sortDirection.value,
+    page: 1,
+    pageSize: pageSize.value,
+  }, locale.value)
   const link = document.createElement('a')
   link.href = url
-  link.download = `${activeDatasetKey.value}-${locale.value}.csv`
   link.click()
-  URL.revokeObjectURL(url)
 }
 
 async function loadDataset() {
@@ -198,22 +187,31 @@ async function loadDataset() {
       contact: contactFilter.value,
       sort: sortKey.value,
       direction: sortDirection.value,
+      page: page.value,
+      pageSize: pageSize.value,
     })
 
-    locations.value = payload.items
+    tableLocations.value = payload.items
+    mapLocations.value = payload.mapItems
     municipalityOptions.value = payload.municipalities
     activityOptions.value = payload.activities
     lastUpdated.value = payload.fetchedAt
+    totalResults.value = payload.pagination.total
+    page.value = payload.pagination.page
+    pageCount.value = payload.pagination.pageCount
 
     if (!selectedId.value) {
-      selectedId.value = payload.items[0]?.id ?? null
+      selectedId.value = payload.mapItems[0]?.id ?? null
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
     errorMessage.value = message
-    locations.value = []
+    tableLocations.value = []
+    mapLocations.value = []
     municipalityOptions.value = []
     activityOptions.value = []
+    totalResults.value = 0
+    pageCount.value = 1
     selectedId.value = null
   } finally {
     loading.value = false
@@ -251,6 +249,22 @@ function scheduleDatasetReload() {
   }, 180)
 }
 
+function goToPage(nextPage: number) {
+  const safePage = Math.min(Math.max(1, nextPage), pageCount.value)
+
+  if (safePage === page.value) {
+    return
+  }
+
+  page.value = safePage
+  void loadDataset()
+}
+
+function onPageSizeChange() {
+  page.value = 1
+  void loadDataset()
+}
+
 watch(activeDatasetKey, () => {
   resetFilters()
   selectedId.value = null
@@ -259,7 +273,7 @@ watch(activeDatasetKey, () => {
 
 // Keep the detail panel valid after filters change. If the selected record is
 // no longer visible, automatically select the first remaining result.
-watch(locations, (nextLocations) => {
+watch(mapLocations, (nextLocations) => {
   if (!nextLocations.length) {
     selectedId.value = null
     return
@@ -277,6 +291,7 @@ watch([selectedMunicipality, selectedActivity, contactFilter, sortKey, sortDirec
     return
   }
 
+  page.value = 1
   void loadDataset()
 })
 
@@ -285,6 +300,7 @@ watch(search, () => {
     return
   }
 
+  page.value = 1
   scheduleDatasetReload()
 })
 
@@ -462,7 +478,7 @@ onMounted(() => {
           </span>
           <span class="inline-flex items-center gap-2">
             <span :class="subtleClass">{{ t('metrics.totalLocations') }}</span>
-            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ locations.length }}</span>
+            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ totalResults }}</span>
           </span>
           <span class="inline-flex items-center gap-2">
             <span :class="subtleClass">{{ t('metrics.municipalities') }}</span>
@@ -487,7 +503,7 @@ onMounted(() => {
             </div>
             <div class="text-sm" :class="mutedClass">
               <div>{{ t('map.lastSync') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ formatDate(lastUpdated) }}</span></div>
-              <div>{{ t('map.filteredResults') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ locations.length }}</span></div>
+              <div>{{ t('map.filteredResults') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ totalResults }}</span></div>
             </div>
           </div>
 
@@ -498,7 +514,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <LeafletMap :locations="locations" :selected-id="selectedId" @select="selectedId = $event" />
+            <LeafletMap :locations="mapLocations" :selected-id="selectedId" @select="selectedId = $event" />
           </div>
         </article>
 
@@ -586,13 +602,13 @@ onMounted(() => {
 
           <div class="text-sm" :class="mutedClass">
             <span v-if="errorMessage" class="text-rose-300">{{ errorMessage }}</span>
-            <span v-else>{{ t('table.visibleResults', { count: locations.length }) }}</span>
+            <span v-else>{{ t('table.visibleResults', { count: totalResults, from: currentRangeStart, to: currentRangeEnd }) }}</span>
           </div>
         </div>
 
         <div class="divide-y divide-white/8 lg:hidden">
           <article
-            v-for="location in locations"
+            v-for="location in tableLocations"
             :key="location.id"
             class="cursor-pointer space-y-4 border-l-4 px-5 py-5 transition"
             :class="location.id === selectedId ? 'border-l-sky-400 bg-sky-400/14' : 'border-l-transparent odd:bg-white/[0.06] even:bg-slate-950/34'"
@@ -628,7 +644,7 @@ onMounted(() => {
             </dl>
           </article>
 
-          <div v-if="!locations.length" class="px-5 py-8 text-center" :class="mutedClass">
+          <div v-if="!tableLocations.length" class="px-5 py-8 text-center" :class="mutedClass">
             {{ t('states.noResults') }}
           </div>
         </div>
@@ -647,7 +663,7 @@ onMounted(() => {
             </thead>
             <tbody :class="tableBodyClass">
               <tr
-                v-for="location in locations"
+                v-for="location in tableLocations"
                 :key="location.id"
                 class="cursor-pointer border-l-2 border-transparent transition hover:bg-white/5"
                 :class="location.id === selectedId ? 'border-l-sky-400 bg-sky-400/10' : 'odd:bg-white/[0.02] even:bg-slate-950/18'"
@@ -665,11 +681,35 @@ onMounted(() => {
                   <div>{{ formatText(location.email) }}</div>
                 </td>
               </tr>
-              <tr v-if="!locations.length">
+              <tr v-if="!tableLocations.length">
                 <td colspan="6" class="px-5 py-8 text-center" :class="mutedClass">{{ t('states.noResults') }}</td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="flex flex-col gap-3 border-t px-5 py-4 sm:flex-row sm:items-center sm:justify-between" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
+          <div class="text-sm" :class="mutedClass">
+            {{ t('table.pageStatus', { page, pageCount, total: totalResults }) }}
+          </div>
+
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label class="flex items-center gap-3 text-sm" :class="mutedClass">
+              <span>{{ t('table.rowsPerPage') }}</span>
+              <select v-model="pageSize" :class="compactControlClass" @change="onPageSizeChange">
+                <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
+              </select>
+            </label>
+
+            <div class="flex items-center gap-2">
+              <button type="button" :class="secondaryButtonClass" :disabled="page <= 1" @click="goToPage(page - 1)">
+                {{ t('table.previousPage') }}
+              </button>
+              <button type="button" :class="secondaryButtonClass" :disabled="page >= pageCount" @click="goToPage(page + 1)">
+                {{ t('table.nextPage') }}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
     </main>

@@ -32,5 +32,15 @@ export type DatasetSummary = {
   count: number
 }
 
+/** Shared pagination metadata returned by server-side list endpoints. */
+export type PaginationMeta = {
+  total: number
+  page: number
+  pageSize: number
+  pageCount: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
+}
+
 /** Columns that support client-side sorting in the inventory view. */
 export type SortKey = 'name' | 'municipality' | 'address' | 'reference' | 'activityType'

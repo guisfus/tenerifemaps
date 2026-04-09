@@ -2,15 +2,16 @@
 
 Tenerife Maps is a bilingual web application for exploring public GeoJSON datasets from Tenerife through a map-first interface.
 
-It combines open geospatial data, client-side filtering, synchronized map and table views, and CSV export into a single lightweight frontend built with Vue and Leaflet.
+It combines open geospatial data, server-side querying, synchronized map and table views, and CSV export into a single application built with Vue, Leaflet, and Vercel Functions.
 
 ## Highlights
 
 - Interactive map with marker clustering
 - Multiple Tenerife open-data datasets
-- Text, municipality, activity, and contact filters
+- Server-side text, municipality, activity, and contact filters
 - Synchronized selection between map, detail panel, and inventory
-- CSV export for the currently visible results
+- Server-side CSV export for the current filtered result set
+- Server-side pagination for the inventory table
 - Spanish and English user interface
 
 ## Stack
@@ -56,7 +57,7 @@ The production output is written to `dist/`.
 
 The application loads public Tenerife GeoJSON datasets, normalizes them into a shared internal record model, and renders them through a unified map and inventory interface.
 
-To keep the frontend compatible with external open-data sources, dataset requests are routed through a small server-side proxy endpoint before being processed in the browser.
+The frontend delegates dataset processing to server-side endpoints. The server retrieves the source GeoJSON, normalizes it, applies filtering, sorting, pagination, and summary aggregation, and returns UI-ready payloads to the browser.
 
 ## Data Source
 
@@ -66,7 +67,10 @@ All datasets used by the application are published through `datos.tenerife.es`.
 
 ```text
 api/
-  dataset.ts               # Serverless dataset endpoint
+  dataset.ts               # Raw dataset proxy endpoint
+  export.ts                # CSV export endpoint
+  locations.ts             # Paginated query endpoint
+  summary.ts               # Dataset summary endpoint
 src/
   App.vue                  # Main application state and layout
   components/
@@ -75,9 +79,10 @@ src/
   data/
     datasets.ts            # Dataset catalog
   server/
-    datasetProxy.ts        # Shared proxy logic for development and production
+    datasetProxy.ts        # Raw GeoJSON proxy logic
+    locations.ts           # Server-side normalization and query layer
   services/
-    geojson.ts             # GeoJSON loading, caching, and normalization
+    geojson.ts             # Frontend API client
   i18n.ts                  # Bilingual UI copy
   types.ts                 # Shared types
 ```
