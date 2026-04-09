@@ -11,8 +11,11 @@ type GeoJsonResponse = {
   features?: Feature[]
 }
 
+// Cache one normalized result per dataset key to avoid repeated network work
+// when switching language, redrawing charts or refreshing the UI structure.
 const cache = new Map<string, LocationRecord[]>()
 
+/** Normalizes nullable and legacy placeholder values from the source GeoJSON. */
 function cleanValue(value: unknown) {
   if (value === null || value === undefined || value === '' || value === 'null' || value === 0 || value === '0') {
     return ''
@@ -27,6 +30,7 @@ function buildAddress(properties: Record<string, unknown>) {
   return [street, number].filter(Boolean).join(', ')
 }
 
+/** Ensures exported links are clickable even when the upstream dataset omits the protocol. */
 function normalizeWebsite(rawWebsite: string) {
   if (!rawWebsite) {
     return ''
@@ -68,6 +72,12 @@ function createRecord(feature: Feature, index: number): LocationRecord | null {
   }
 }
 
+/**
+ * Downloads and normalizes one dataset into the internal `LocationRecord` shape.
+ *
+ * Returning typed records here keeps rendering components free from source-specific
+ * field names and defensive parsing.
+ */
 export async function fetchDatasetLocations(dataset: DatasetDefinition) {
   if (cache.has(dataset.key)) {
     return cache.get(dataset.key) ?? []

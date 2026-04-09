@@ -4,6 +4,8 @@ import L from 'leaflet'
 import 'leaflet.markercluster'
 import type { LocationRecord } from '../types'
 
+// The map stays intentionally dumb: it only knows how to render locations and
+// report selection back to the parent component.
 const props = defineProps<{
   locations: LocationRecord[]
   selectedId: string | null
@@ -32,6 +34,8 @@ function createMarkerIcon(isSelected: boolean) {
   })
 }
 
+// Rebuild cluster markers whenever the incoming dataset changes. Re-fitting the
+// bounds is only needed when the set of locations changes, not when selection changes.
 function renderMarkers(shouldFitBounds = true) {
   if (!map || !markerLayer) {
     return
@@ -78,6 +82,7 @@ onMounted(() => {
   markerLayer = L.markerClusterGroup({
     chunkedLoading: true,
     showCoverageOnHover: false,
+    // Clustering is intentionally relaxed so clusters break apart earlier when zooming.
     disableClusteringAtZoom: 14,
     maxClusterRadius: 40,
     iconCreateFunction(cluster) {
@@ -97,6 +102,8 @@ onMounted(() => {
   const element = document.getElementById(mapId)
 
   if (element) {
+    // Leaflet does not automatically react when the parent container grows after
+    // mount, so we invalidate the internal size on real DOM resize.
     resizeObserver = new ResizeObserver(() => {
       map?.invalidateSize(false)
     })

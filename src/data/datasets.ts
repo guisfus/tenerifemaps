@@ -1,5 +1,7 @@
 import type { DatasetDefinition, LocaleCode } from '../types'
 
+// Single source of truth for every dataset exposed by the application.
+// Each entry contains the bilingual labels used in the UI and the remote GeoJSON URL.
 export const DATASETS: DatasetDefinition[] = [
   {
     key: 'transporte',
@@ -131,6 +133,7 @@ export const DATASETS: DatasetDefinition[] = [
 
 export function getDatasetPresentation(dataset: DatasetDefinition, locale: string) {
   const safeLocale = (locale === 'en' ? 'en' : 'es') as LocaleCode
+
   return {
     title: dataset.title[safeLocale],
     description: dataset.description[safeLocale],

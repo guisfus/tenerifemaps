@@ -1,5 +1,7 @@
 import { createI18n } from 'vue-i18n'
 
+// All product copy lives here so the UI stays bilingual without scattering
+// literal strings across components.
 export const i18n = createI18n({
   legacy: false,
   globalInjection: true,

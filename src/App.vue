@@ -11,6 +11,7 @@ type ContactFilter = 'all' | 'withContact' | 'withoutContact'
 
 const { t, locale } = useI18n()
 
+// Main UI state: active dataset, selection, filters and loading flags.
 const activeDatasetKey = ref(DATASETS[0].key)
 const selectedId = ref<string | null>(null)
 const search = ref('')
@@ -26,6 +27,8 @@ const datasetSummaries = ref<DatasetSummary[]>([])
 const sortKey = ref<SortKey>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 
+// Dataset metadata is stored separately from loaded records so the same UI can
+// switch sources without changing the rendering logic.
 const currentDataset = computed(() => DATASETS.find((dataset) => dataset.key === activeDatasetKey.value) ?? DATASETS[0])
 const datasetPresentation = computed(() => getDatasetPresentation(currentDataset.value, locale.value))
 
@@ -33,6 +36,8 @@ const municipalityOptions = computed(() => [...new Set(locations.value.map((item
 const activityOptions = computed(() => [...new Set(locations.value.map((item) => item.activityType).filter(Boolean))].sort((a, b) => a.localeCompare(b, locale.value)))
 const hasActiveFilters = computed(() => search.value || selectedMunicipality.value !== 'all' || selectedActivity.value !== 'all' || contactFilter.value !== 'all')
 
+// Filtering and sorting live in a single computed value so every visual block
+// reads the same consistent subset of locations.
 const filteredLocations = computed(() => {
   const query = search.value.trim().toLowerCase()
 
@@ -97,6 +102,8 @@ function formatText(value: string) {
   return value || '—'
 }
 
+// Clicking the same header toggles direction; clicking a different header
+// switches the active sort key and resets to ascending order.
 function toggleSort(nextKey: SortKey) {
   if (sortKey.value === nextKey) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
@@ -114,6 +121,8 @@ function resetFilters() {
   contactFilter.value = 'all'
 }
 
+// CSV export reuses the current filtered subset so the downloaded file always
+// matches what the user is looking at on screen.
 function escapeCsv(value: string) {
   const normalized = String(value ?? '')
   return `"${normalized.replaceAll('"', '""')}"`
@@ -153,6 +162,8 @@ async function loadDataset() {
   errorMessage.value = ''
 
   try {
+    // Records are normalized inside the service layer, so the component only
+    // consumes a clean typed structure.
     const records = await fetchDatasetLocations(currentDataset.value)
     locations.value = records
     resetFilters()
@@ -168,6 +179,8 @@ async function loadDataset() {
   }
 }
 
+// The side chart compares the full volume of every configured dataset. This is
+// loaded once on startup and then served from the service cache.
 async function loadChartSummaries() {
   chartLoading.value = true
 
@@ -192,6 +205,8 @@ watch(activeDatasetKey, () => {
   void loadDataset()
 })
 
+// Keep the detail panel valid after filters change. If the selected record is
+// no longer visible, automatically select the first remaining result.
 watch(filteredLocations, (nextLocations) => {
   if (!nextLocations.length) {
     selectedId.value = null
@@ -209,6 +224,7 @@ watch(locale, (nextLocale) => {
   document.documentElement.lang = nextLocale
 })
 
+// Initial load fetches the active dataset and the cross-dataset summary chart.
 onMounted(() => {
   document.documentElement.lang = locale.value
   void loadDataset()
