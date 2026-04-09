@@ -65,6 +65,7 @@ export type LocationsQuery = {
   direction: SortDirection
   page: number
   pageSize: number
+  refresh: boolean
 }
 
 export type LocationsResult = LocationsSuccess | Failure
@@ -264,6 +265,7 @@ export function parseLocationsQuery(searchParams: URLSearchParams): LocationsQue
     direction: parseDirection(searchParams.get('direction')),
     page: parsePositiveInteger(searchParams.get('page'), 1),
     pageSize: Math.min(parsePositiveInteger(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE),
+    refresh: searchParams.get('refresh') === '1',
   }
 }
 
@@ -271,14 +273,18 @@ function parseLocale(searchParams: URLSearchParams): LocaleCode {
   return searchParams.get('locale') === 'en' ? 'en' : 'es'
 }
 
-async function getNormalizedDataset(dataset: DatasetDefinition): Promise<DatasetCacheEntry | Failure> {
+async function getNormalizedDataset(dataset: DatasetDefinition, options: { forceFresh?: boolean } = {}): Promise<DatasetCacheEntry | Failure> {
   const cached = datasetCache.get(dataset.key)
 
-  if (cached) {
+  if (cached && !options.forceFresh) {
     return cached
   }
 
-  const result = await fetchDatasetPayload(dataset.key)
+  if (options.forceFresh) {
+    datasetCache.delete(dataset.key)
+  }
+
+  const result = await fetchDatasetPayload(dataset.key, { forceFresh: options.forceFresh })
 
   if (result.status !== 200) {
     return result
@@ -310,7 +316,7 @@ async function resolveDataset(query: LocationsQuery): Promise<{ dataset: Dataset
     }
   }
 
-  const entry = await getNormalizedDataset(dataset)
+  const entry = await getNormalizedDataset(dataset, { forceFresh: query.refresh })
 
   if ('error' in entry) {
     return entry

@@ -25,6 +25,7 @@ type DatasetRequestOptions = {
   direction: SortDirection
   page: number
   pageSize: number
+  refresh?: boolean
 }
 
 async function readResponse<T>(response: Response) {
@@ -58,6 +59,7 @@ export async function fetchDatasetLocations(dataset: DatasetDefinition, options:
     direction: options.direction,
     page: String(options.page),
     pageSize: String(options.pageSize),
+    refresh: options.refresh ? '1' : '0',
   })
 
   const response = await fetch(`/api/locations?${searchParams.toString()}`)
@@ -81,6 +83,7 @@ export function buildDatasetExportUrl(dataset: DatasetDefinition, options: Datas
     page: '1',
     pageSize: String(options.pageSize),
     locale,
+    refresh: options.refresh ? '1' : '0',
   })
 
   return `/api/export?${searchParams.toString()}`

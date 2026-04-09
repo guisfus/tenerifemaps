@@ -169,13 +169,14 @@ function exportCsv() {
     direction: sortDirection.value,
     page: 1,
     pageSize: pageSize.value,
+    refresh: false,
   }, locale.value)
   const link = document.createElement('a')
   link.href = url
   link.click()
 }
 
-async function loadDataset() {
+async function loadDataset(options: { forceRefresh?: boolean } = {}) {
   loading.value = true
   errorMessage.value = ''
 
@@ -189,6 +190,7 @@ async function loadDataset() {
       direction: sortDirection.value,
       page: page.value,
       pageSize: pageSize.value,
+      refresh: options.forceRefresh,
     })
 
     tableLocations.value = payload.items
@@ -216,6 +218,11 @@ async function loadDataset() {
   } finally {
     loading.value = false
   }
+}
+
+function refreshDataset() {
+  selectedId.value = null
+  void loadDataset({ forceRefresh: true })
 }
 
 async function loadChartSummaries() {
@@ -450,7 +457,7 @@ onMounted(() => {
             <button
               type="button"
               :class="primaryButtonClass"
-              @click="loadDataset"
+              @click="refreshDataset"
             >
               {{ t('controls.refresh') }}
             </button>
@@ -525,8 +532,8 @@ onMounted(() => {
                 <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('insights.title') }}</p>
                 <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ t('insights.subtitle') }}</h2>
               </div>
-              <span class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">
-                {{ chartLoading ? t('states.loading') : t('insights.ready') }}
+              <span v-if="chartLoading" class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">
+                {{ t('states.loading') }}
               </span>
             </div>
             <div v-if="chartLoading && !chartItems.length" class="mt-5 rounded-2xl px-4 py-8 text-center text-sm" :class="isLightTheme ? 'border border-slate-300 bg-white text-slate-500' : 'border border-white/10 bg-slate-950/35 text-slate-400'">
@@ -563,28 +570,33 @@ onMounted(() => {
                 <div :class="cardClass">
                   <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('table.columns.contact') }}</dt>
                   <dd class="mt-1 text-base" :class="headingClass">{{ formatText(selectedLocation.phone) }}</dd>
-                  <dd class="mt-1 text-sm" :class="mutedClass">{{ formatText(selectedLocation.email) }}</dd>
+                  <dd class="mt-1 text-sm" :class="mutedClass">
+                    <a
+                      v-if="selectedLocation.email"
+                      :href="`mailto:${selectedLocation.email}`"
+                      class="transition hover:underline"
+                      :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
+                    >
+                      {{ selectedLocation.email }}
+                    </a>
+                    <span v-else>{{ formatText(selectedLocation.email) }}</span>
+                  </dd>
+                </div>
+                <div v-if="selectedLocation.website" :class="cardClass">
+                  <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('details.website') }}</dt>
+                  <dd class="mt-1 break-all text-sm">
+                    <a
+                      :href="selectedLocation.website"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="transition hover:underline"
+                      :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
+                    >
+                      {{ selectedLocation.website }}
+                    </a>
+                  </dd>
                 </div>
               </dl>
-
-              <div class="grid gap-3 sm:grid-cols-2">
-                <a
-                  v-if="selectedLocation.website"
-                  :href="selectedLocation.website"
-                  target="_blank"
-                  rel="noreferrer"
-                 :class="primaryButtonClass"
-                >
-                  {{ t('details.openWebsite') }}
-                </a>
-                <a
-                  v-if="selectedLocation.email"
-                  :href="`mailto:${selectedLocation.email}`"
-                  :class="secondaryButtonClass"
-                >
-                  {{ t('details.sendEmail') }}
-                </a>
-              </div>
             </div>
 
             <p v-else class="mt-4 text-sm" :class="mutedClass">{{ t('details.empty') }}</p>
@@ -641,6 +653,20 @@ onMounted(() => {
                 <dd class="mt-1 text-white">{{ formatText(location.phone) }}</dd>
                 <dd class="mt-1 text-slate-400">{{ formatText(location.email) }}</dd>
               </div>
+              <div v-if="location.website" class="rounded-sm bg-black/10 px-3 py-2">
+                <dt class="text-[11px] uppercase tracking-[0.18em] text-slate-500">{{ t('details.website') }}</dt>
+                <dd class="mt-1 break-all">
+                  <a
+                    :href="location.website"
+                    target="_blank"
+                    rel="noreferrer"
+                    class="transition hover:underline"
+                    :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
+                  >
+                    {{ location.website }}
+                  </a>
+                </dd>
+              </div>
             </dl>
           </article>
 
@@ -659,6 +685,7 @@ onMounted(() => {
                 <th class="px-5 py-4">{{ t('table.columns.address') }}</th>
                 <th class="px-5 py-4">{{ t('table.columns.reference') }}</th>
                 <th class="px-5 py-4">{{ t('table.columns.contact') }}</th>
+                <th class="px-5 py-4">{{ t('details.website') }}</th>
               </tr>
             </thead>
             <tbody :class="tableBodyClass">
@@ -680,9 +707,22 @@ onMounted(() => {
                   <div>{{ formatText(location.phone) }}</div>
                   <div>{{ formatText(location.email) }}</div>
                 </td>
+                <td class="px-5 py-4 align-top">
+                  <a
+                    v-if="location.website"
+                    :href="location.website"
+                    target="_blank"
+                    rel="noreferrer"
+                    class="break-all transition hover:underline"
+                    :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
+                  >
+                    {{ location.website }}
+                  </a>
+                  <span v-else :class="mutedClass">{{ formatText(location.website) }}</span>
+                </td>
               </tr>
               <tr v-if="!tableLocations.length">
-                <td colspan="6" class="px-5 py-8 text-center" :class="mutedClass">{{ t('states.noResults') }}</td>
+                <td colspan="7" class="px-5 py-8 text-center" :class="mutedClass">{{ t('states.noResults') }}</td>
               </tr>
             </tbody>
           </table>

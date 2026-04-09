@@ -19,7 +19,7 @@ const CACHE_CONTROL = 'public, s-maxage=86400, stale-while-revalidate=604800'
  * Resolves one known dataset key, fetches the upstream GeoJSON and returns a
  * small typed result consumed by both the Vercel function and the local Vite middleware.
  */
-export async function fetchDatasetPayload(key: string): Promise<DatasetProxyResult> {
+export async function fetchDatasetPayload(key: string, options: { forceFresh?: boolean } = {}): Promise<DatasetProxyResult> {
   if (!key) {
     return {
       status: 400,
@@ -38,6 +38,7 @@ export async function fetchDatasetPayload(key: string): Promise<DatasetProxyResu
 
   try {
     const response = await fetch(dataset.url, {
+      cache: options.forceFresh ? 'no-store' : 'default',
       headers: {
         accept: 'application/geo+json, application/json',
       },
