@@ -20,6 +20,8 @@ export const i18n = createI18n({
         search: 'Busqueda',
         searchPlaceholder: 'Buscar por nombre, municipio, direccion o actividad',
         refresh: 'Actualizar datos',
+        lightMode: 'Activar modo claro',
+        darkMode: 'Activar modo oscuro',
       },
       filters: {
         municipality: 'Municipio',
@@ -45,8 +47,8 @@ export const i18n = createI18n({
         filteredResults: 'Resultados filtrados',
       },
       insights: {
-        title: 'Resumen de cartera',
-        subtitle: 'Peso relativo por dataset',
+        title: 'Resumen de datasets',
+        subtitle: 'Comparativa de registros por categoria',
         ready: 'Listo',
       },
       details: {
@@ -91,6 +93,8 @@ export const i18n = createI18n({
         search: 'Search',
         searchPlaceholder: 'Search by name, municipality, address or activity',
         refresh: 'Refresh data',
+        lightMode: 'Switch to light mode',
+        darkMode: 'Switch to dark mode',
       },
       filters: {
         municipality: 'Municipality',
@@ -116,8 +120,8 @@ export const i18n = createI18n({
         filteredResults: 'Filtered results',
       },
       insights: {
-        title: 'Portfolio summary',
-        subtitle: 'Relative weight by dataset',
+        title: 'Dataset overview',
+        subtitle: 'Record count by category',
         ready: 'Ready',
       },
       details: {

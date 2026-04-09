@@ -8,6 +8,7 @@ import { fetchDatasetLocations } from './services/geojson'
 import type { DatasetSummary, LocationRecord, SortKey } from './types'
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
+type ThemeMode = 'dark' | 'light'
 
 const { t, locale } = useI18n()
 
@@ -26,6 +27,7 @@ const locations = ref<LocationRecord[]>([])
 const datasetSummaries = ref<DatasetSummary[]>([])
 const sortKey = ref<SortKey>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
+const theme = ref<ThemeMode>('dark')
 
 // Dataset metadata is stored separately from loaded records so the same UI can
 // switch sources without changing the rendering logic.
@@ -82,6 +84,7 @@ const filteredLocations = computed(() => {
 const selectedLocation = computed(() => filteredLocations.value.find((location) => location.id === selectedId.value) ?? null)
 const municipalitiesCount = computed(() => new Set(filteredLocations.value.map((item) => item.municipality).filter(Boolean)).size)
 const activityCount = computed(() => new Set(filteredLocations.value.map((item) => item.activityType).filter(Boolean)).size)
+const isLightTheme = computed(() => theme.value === 'light')
 const chartItems = computed(() =>
   datasetSummaries.value.map((item) => ({
     key: item.key,
@@ -89,6 +92,70 @@ const chartItems = computed(() =>
     value: item.count,
   })),
 )
+
+const pageClass = computed(() =>
+  isLightTheme.value
+    ? 'min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.08),transparent_24%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.1),transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_42%,#e5edf5_100%)] text-slate-900'
+    : 'min-h-screen text-slate-100',
+)
+const headerClass = computed(() =>
+  isLightTheme.value ? 'border-b border-slate-300/70 bg-white/75 backdrop-blur-xl' : 'border-b border-white/8 bg-slate-950/40 backdrop-blur-xl',
+)
+const headingClass = computed(() => (isLightTheme.value ? 'text-slate-950' : 'text-white'))
+const mutedClass = computed(() => (isLightTheme.value ? 'text-slate-600' : 'text-slate-400'))
+const subtleClass = computed(() => (isLightTheme.value ? 'text-slate-500' : 'text-slate-500'))
+const accentLabelClass = computed(() => (isLightTheme.value ? 'text-emerald-700/90' : 'text-emerald-300/90'))
+const controlClass = computed(() =>
+  isLightTheme.value
+    ? 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500/60'
+    : 'w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60',
+)
+const compactControlClass = computed(() =>
+  isLightTheme.value
+    ? 'min-w-[78px] appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-7 text-xs font-medium text-slate-900 outline-none transition focus:border-sky-500/60'
+    : 'min-w-[78px] appearance-none rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 pr-7 text-xs font-medium text-white outline-none transition focus:border-sky-400/60',
+)
+const iconButtonClass = computed(() =>
+  isLightTheme.value
+    ? 'group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-sky-400/40 hover:text-sky-700'
+    : 'group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/25 bg-linear-to-r from-sky-400/14 via-cyan-400/10 to-emerald-400/14 text-sky-100 transition hover:border-sky-300/40 hover:from-sky-400/22 hover:to-emerald-400/22',
+)
+const primaryButtonClass = computed(() =>
+  isLightTheme.value
+    ? 'rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800 transition hover:bg-sky-100'
+    : 'rounded-xl border border-sky-400/25 bg-sky-400/10 px-4 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-400/20',
+)
+const secondaryButtonClass = computed(() =>
+  isLightTheme.value
+    ? 'rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-100'
+    : 'rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-white/10',
+)
+const successButtonClass = computed(() =>
+  isLightTheme.value
+    ? 'rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100'
+    : 'rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20',
+)
+const metricRowClass = computed(() =>
+  isLightTheme.value ? 'flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-300 pt-2 text-[11px] text-slate-600' : 'flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/8 pt-2 text-[11px] text-slate-400',
+)
+const panelClass = computed(() => (isLightTheme.value ? 'border-y border-slate-300/80 bg-transparent' : 'border-y border-white/8 bg-transparent'))
+const panelHeaderClass = computed(() => (isLightTheme.value ? 'border-b border-slate-300/80 px-5 py-4' : 'border-b border-white/8 px-5 py-4'))
+const cardClass = computed(() =>
+  isLightTheme.value ? 'border border-slate-300 bg-white/90 p-3' : 'border border-white/8 bg-slate-950/35 p-3',
+)
+const tableHeaderClass = computed(() =>
+  isLightTheme.value ? 'bg-slate-100 text-xs uppercase tracking-[0.18em] text-slate-500' : 'bg-slate-950/35 text-xs uppercase tracking-[0.18em] text-slate-400',
+)
+const tableBodyClass = computed(() => (isLightTheme.value ? 'divide-y divide-slate-200 text-slate-800' : 'divide-y divide-white/5 text-slate-200'))
+
+function applyTheme(nextTheme: ThemeMode) {
+  document.documentElement.dataset.theme = nextTheme
+  document.documentElement.style.colorScheme = nextTheme
+}
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+}
 
 function formatDate(date: string) {
   if (!date) {
@@ -234,8 +301,22 @@ watch(locale, (nextLocale) => {
   document.documentElement.lang = nextLocale
 })
 
+watch(theme, (nextTheme) => {
+  applyTheme(nextTheme)
+  window.localStorage.setItem('tm-theme', nextTheme)
+})
+
 // Initial load fetches the active dataset and the cross-dataset summary chart.
 onMounted(() => {
+  const storedTheme = window.localStorage.getItem('tm-theme')
+  const preferredTheme = storedTheme === 'light' || storedTheme === 'dark'
+    ? storedTheme
+    : window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark'
+
+  theme.value = preferredTheme
+  applyTheme(preferredTheme)
   document.documentElement.lang = locale.value
   void loadDataset().finally(() => {
     queueChartSummaries()
@@ -244,16 +325,16 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen text-slate-100">
-    <header class="border-b border-white/8 bg-slate-950/40 backdrop-blur-xl">
+  <div :class="pageClass">
+    <header :class="headerClass">
       <div class="flex w-full flex-col gap-4 px-4 py-5 sm:px-6 xl:px-8 2xl:px-10">
         <div class="flex items-start justify-between gap-4">
           <div class="space-y-3">
             <div class="flex items-center gap-3">
               <div class="h-3.5 w-3.5 rounded-full bg-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.75)]" />
-              <p class="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-300/90">Open data explorer</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.32em]" :class="accentLabelClass">Open data explorer</p>
             </div>
-            <h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl xl:text-5xl">Tenerife Maps</h1>
+            <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl xl:text-5xl" :class="headingClass">Tenerife Maps</h1>
           </div>
 
           <div class="flex shrink-0 items-center gap-2">
@@ -261,19 +342,33 @@ onMounted(() => {
               <span class="sr-only">{{ t('controls.language') }}</span>
               <select
                 v-model="locale"
-                class="min-w-[78px] appearance-none rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 pr-7 text-xs font-medium text-white outline-none transition focus:border-sky-400/60"
+                :class="compactControlClass"
               >
                 <option value="es">ES</option>
                 <option value="en">EN</option>
               </select>
-              <span class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-slate-400">▾</span>
+              <span class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px]" :class="subtleClass">▾</span>
             </label>
+            <button
+              type="button"
+              :aria-label="theme === 'dark' ? t('controls.lightMode') : t('controls.darkMode')"
+              :title="theme === 'dark' ? t('controls.lightMode') : t('controls.darkMode')"
+              :class="iconButtonClass"
+              @click="toggleTheme"
+            >
+              <svg v-if="theme === 'dark'" viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current">
+                <path d="M6.995 12C6.995 9.243 9.243 7 12 7c2.757 0 5.005 2.243 5.005 5S14.757 17 12 17c-2.757 0-5.005-2.243-5.005-5Zm13.005.75h2v-1.5h-2v1.5ZM2 12.75h2v-1.5H2v1.5ZM11.25 2v2h1.5V2h-1.5Zm0 18v2h1.5v-2h-1.5ZM5.636 4.575l1.414 1.414 1.06-1.06-1.414-1.414-1.06 1.06Zm10.254 10.254 1.414 1.414 1.06-1.06-1.414-1.414-1.06 1.06ZM15.89 5.99l1.414-1.414 1.06 1.06-1.414 1.414-1.06-1.06ZM5.636 19.425l1.414-1.414 1.06 1.06-1.414 1.414-1.06-1.06Z" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current">
+                <path d="M20.742 13.045A8.25 8.25 0 0 1 10.955 3.258a.75.75 0 0 0-.945-.945A9.75 9.75 0 1 0 21.687 13.99a.75.75 0 0 0-.945-.945Z" />
+              </svg>
+            </button>
             <a
               href="https://github.com/guisfus/tenerifemaps"
               target="_blank"
               rel="noreferrer"
               aria-label="Ver en GitHub"
-              class="group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/25 bg-linear-to-r from-sky-400/14 via-cyan-400/10 to-emerald-400/14 text-sky-100 transition hover:border-sky-300/40 hover:from-sky-400/22 hover:to-emerald-400/22"
+              :class="iconButtonClass"
             >
               <svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current transition group-hover:text-white">
                 <path
@@ -284,16 +379,16 @@ onMounted(() => {
           </div>
         </div>
 
-        <p class="max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
+        <p class="max-w-2xl text-sm leading-6 sm:text-base" :class="mutedClass">
           Visualiza datasets georreferenciados de Tenerife con un mapa interactivo, filtros potentes y una experiencia bilingue.
         </p>
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]">
           <label class="min-w-0 space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{{ t('controls.dataset') }}</span>
+            <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('controls.dataset') }}</span>
             <select
               v-model="activeDatasetKey"
-              class="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60"
+              :class="controlClass"
             >
               <option v-for="dataset in DATASETS" :key="dataset.key" :value="dataset.key">
                 {{ getDatasetPresentation(dataset, locale).title }}
@@ -302,19 +397,19 @@ onMounted(() => {
           </label>
 
           <label class="min-w-0 space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{{ t('controls.search') }}</span>
+            <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('controls.search') }}</span>
             <input
               v-model="search"
               :placeholder="t('controls.searchPlaceholder')"
-              class="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-sky-400/60"
+              :class="controlClass"
             />
           </label>
 
           <label class="min-w-0 space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{{ t('filters.municipality') }}</span>
+            <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('filters.municipality') }}</span>
             <select
               v-model="selectedMunicipality"
-              class="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60"
+              :class="controlClass"
             >
               <option value="all">{{ t('filters.allMunicipalities') }}</option>
               <option v-for="item in municipalityOptions" :key="item" :value="item">{{ item }}</option>
@@ -322,10 +417,10 @@ onMounted(() => {
           </label>
 
           <label class="min-w-0 space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{{ t('filters.activity') }}</span>
+            <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('filters.activity') }}</span>
             <select
               v-model="selectedActivity"
-              class="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60"
+              :class="controlClass"
             >
               <option value="all">{{ t('filters.allActivities') }}</option>
               <option v-for="item in activityOptions" :key="item" :value="item">{{ item }}</option>
@@ -333,10 +428,10 @@ onMounted(() => {
           </label>
 
           <label class="min-w-0 space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{{ t('filters.contact') }}</span>
+            <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('filters.contact') }}</span>
             <select
               v-model="contactFilter"
-              class="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60"
+              :class="controlClass"
             >
               <option value="all">{{ t('filters.allRecords') }}</option>
               <option value="withContact">{{ t('filters.withContact') }}</option>
@@ -347,21 +442,21 @@ onMounted(() => {
           <div class="min-w-0 flex flex-col gap-3 sm:flex-row sm:items-end xl:justify-end">
             <button
               type="button"
-              class="rounded-xl border border-sky-400/25 bg-sky-400/10 px-4 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-400/20"
+              :class="primaryButtonClass"
               @click="loadDataset"
             >
               {{ t('controls.refresh') }}
             </button>
             <button
               type="button"
-              class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+              :class="secondaryButtonClass"
               @click="resetFilters"
             >
               {{ t('filters.reset') }}
             </button>
             <button
               type="button"
-              class="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20"
+              :class="successButtonClass"
               @click="exportCsv"
             >
               {{ t('table.exportCsv') }}
@@ -369,22 +464,22 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/8 pt-2 text-[11px] text-slate-400">
+        <div :class="metricRowClass">
           <span class="inline-flex items-center gap-2">
-            <span class="text-slate-500">{{ t('metrics.activeCategory') }}</span>
-            <span class="font-medium text-slate-200">{{ datasetPresentation.title }}</span>
+            <span :class="subtleClass">{{ t('metrics.activeCategory') }}</span>
+            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ datasetPresentation.title }}</span>
           </span>
           <span class="inline-flex items-center gap-2">
-            <span class="text-slate-500">{{ t('metrics.totalLocations') }}</span>
-            <span class="font-medium text-slate-200">{{ filteredLocations.length }}</span>
+            <span :class="subtleClass">{{ t('metrics.totalLocations') }}</span>
+            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ filteredLocations.length }}</span>
           </span>
           <span class="inline-flex items-center gap-2">
-            <span class="text-slate-500">{{ t('metrics.municipalities') }}</span>
-            <span class="font-medium text-slate-200">{{ municipalitiesCount }}</span>
+            <span :class="subtleClass">{{ t('metrics.municipalities') }}</span>
+            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ municipalitiesCount }}</span>
           </span>
           <span class="inline-flex items-center gap-2">
-            <span class="text-slate-500">{{ t('metrics.activityTypes') }}</span>
-            <span class="font-medium text-slate-200">{{ activityCount }}</span>
+            <span :class="subtleClass">{{ t('metrics.activityTypes') }}</span>
+            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ activityCount }}</span>
           </span>
         </div>
       </div>
@@ -392,22 +487,22 @@ onMounted(() => {
 
     <main class="flex w-full flex-col gap-6 px-4 py-4 sm:px-6 xl:px-8 2xl:px-10 lg:py-5">
       <section class="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1.7fr)_420px]">
-        <article class="flex min-h-[760px] flex-col border-y border-white/8 bg-transparent">
-          <div class="flex flex-col gap-4 border-b border-white/8 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+        <article class="flex min-h-[760px] flex-col" :class="panelClass">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" :class="panelHeaderClass">
             <div>
-              <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('map.sectionEyebrow') }}</p>
-              <h2 class="mt-2 text-2xl font-semibold text-white">{{ datasetPresentation.title }}</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{{ datasetPresentation.description }}</p>
+              <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('map.sectionEyebrow') }}</p>
+              <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ datasetPresentation.title }}</h2>
+              <p class="mt-2 max-w-3xl text-sm leading-6" :class="mutedClass">{{ datasetPresentation.description }}</p>
             </div>
-            <div class="text-sm text-slate-400">
-              <div>{{ t('map.lastSync') }}: <span class="text-slate-200">{{ formatDate(lastUpdated) }}</span></div>
-              <div>{{ t('map.filteredResults') }}: <span class="text-slate-200">{{ filteredLocations.length }}</span></div>
+            <div class="text-sm" :class="mutedClass">
+              <div>{{ t('map.lastSync') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ formatDate(lastUpdated) }}</span></div>
+              <div>{{ t('map.filteredResults') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ filteredLocations.length }}</span></div>
             </div>
           </div>
 
           <div class="relative flex-1">
               <div v-if="loading" class="absolute inset-0 z-10 grid place-items-center bg-slate-950/70 backdrop-blur-sm">
-              <div class="border border-white/10 bg-white/10 px-4 py-2 text-sm text-slate-100">
+              <div class="px-4 py-2 text-sm" :class="isLightTheme ? 'border border-slate-300 bg-white text-slate-800' : 'border border-white/10 bg-white/10 text-slate-100'">
                 {{ t('states.loading') }}
               </div>
             </div>
@@ -417,51 +512,51 @@ onMounted(() => {
         </article>
 
         <aside class="space-y-6">
-          <article class="border-y border-white/8 bg-transparent p-5">
+          <article class="p-5" :class="panelClass">
             <div class="flex items-center justify-between gap-4">
               <div>
-                <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('insights.title') }}</p>
-                <h2 class="mt-2 text-2xl font-semibold text-white">{{ t('insights.subtitle') }}</h2>
+                <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('insights.title') }}</p>
+                <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ t('insights.subtitle') }}</h2>
               </div>
-              <span class="text-xs uppercase tracking-[0.22em] text-slate-500">
+              <span class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">
                 {{ chartLoading ? t('states.loading') : t('insights.ready') }}
               </span>
             </div>
-            <div v-if="chartLoading && !chartItems.length" class="mt-5 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-8 text-center text-sm text-slate-400">
+            <div v-if="chartLoading && !chartItems.length" class="mt-5 rounded-2xl px-4 py-8 text-center text-sm" :class="isLightTheme ? 'border border-slate-300 bg-white text-slate-500' : 'border border-white/10 bg-slate-950/35 text-slate-400'">
               {{ t('states.loading') }}
             </div>
             <BarChart v-else :items="chartItems" :empty-label="t('states.noChartData')" />
           </article>
 
-          <article class="border-y border-white/8 bg-transparent p-5">
+          <article class="p-5" :class="panelClass">
             <div class="flex items-center justify-between gap-3">
-              <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('details.title') }}</p>
+              <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('details.title') }}</p>
               <span v-if="hasActiveFilters" class="text-xs text-sky-300">{{ t('filters.active') }}</span>
             </div>
 
             <div v-if="selectedLocation" class="mt-4 space-y-4">
               <div>
-                <h3 class="text-2xl font-semibold text-white">{{ selectedLocation.name }}</h3>
-                <p class="mt-1 text-sm text-slate-400">{{ formatText(selectedLocation.activityType) }}</p>
+                <h3 class="text-2xl font-semibold" :class="headingClass">{{ selectedLocation.name }}</h3>
+                <p class="mt-1 text-sm" :class="mutedClass">{{ formatText(selectedLocation.activityType) }}</p>
               </div>
 
               <dl class="grid gap-3 text-sm text-slate-300">
-                <div class="border border-white/8 bg-slate-950/35 p-3">
-                  <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">{{ t('details.municipality') }}</dt>
-                  <dd class="mt-1 text-base text-white">{{ formatText(selectedLocation.municipality) }}</dd>
+                <div :class="cardClass">
+                  <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('details.municipality') }}</dt>
+                  <dd class="mt-1 text-base" :class="headingClass">{{ formatText(selectedLocation.municipality) }}</dd>
                 </div>
-                <div class="border border-white/8 bg-slate-950/35 p-3">
-                  <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">{{ t('details.address') }}</dt>
-                  <dd class="mt-1 text-base text-white">{{ formatText(selectedLocation.address) }}</dd>
+                <div :class="cardClass">
+                  <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('details.address') }}</dt>
+                  <dd class="mt-1 text-base" :class="headingClass">{{ formatText(selectedLocation.address) }}</dd>
                 </div>
-                <div class="border border-white/8 bg-slate-950/35 p-3">
-                  <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">{{ t('details.reference') }}</dt>
-                  <dd class="mt-1 text-base text-white">{{ formatText(selectedLocation.reference) }}</dd>
+                <div :class="cardClass">
+                  <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('details.reference') }}</dt>
+                  <dd class="mt-1 text-base" :class="headingClass">{{ formatText(selectedLocation.reference) }}</dd>
                 </div>
-                <div class="border border-white/8 bg-slate-950/35 p-3">
-                  <dt class="text-xs uppercase tracking-[0.18em] text-slate-500">{{ t('table.columns.contact') }}</dt>
-                  <dd class="mt-1 text-base text-white">{{ formatText(selectedLocation.phone) }}</dd>
-                  <dd class="mt-1 text-sm text-slate-400">{{ formatText(selectedLocation.email) }}</dd>
+                <div :class="cardClass">
+                  <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('table.columns.contact') }}</dt>
+                  <dd class="mt-1 text-base" :class="headingClass">{{ formatText(selectedLocation.phone) }}</dd>
+                  <dd class="mt-1 text-sm" :class="mutedClass">{{ formatText(selectedLocation.email) }}</dd>
                 </div>
               </dl>
 
@@ -471,34 +566,34 @@ onMounted(() => {
                   :href="selectedLocation.website"
                   target="_blank"
                   rel="noreferrer"
-                 class="border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-center text-sm font-medium text-sky-100 transition hover:bg-sky-400/20"
+                 :class="primaryButtonClass"
                 >
                   {{ t('details.openWebsite') }}
                 </a>
                 <a
                   v-if="selectedLocation.email"
                   :href="`mailto:${selectedLocation.email}`"
-                  class="border border-white/10 bg-white/5 px-4 py-3 text-center text-sm font-medium text-white transition hover:bg-white/10"
+                  :class="secondaryButtonClass"
                 >
                   {{ t('details.sendEmail') }}
                 </a>
               </div>
             </div>
 
-            <p v-else class="mt-4 text-sm text-slate-400">{{ t('details.empty') }}</p>
+            <p v-else class="mt-4 text-sm" :class="mutedClass">{{ t('details.empty') }}</p>
           </article>
         </aside>
       </section>
 
-      <section class="border-y border-white/8 bg-transparent">
-        <div class="flex flex-col gap-3 border-b border-white/8 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+      <section :class="panelClass">
+        <div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-end sm:justify-between" :class="isLightTheme ? 'border-b border-slate-300/80' : 'border-b border-white/8'">
           <div>
-            <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('table.title') }}</p>
-            <h2 class="mt-2 text-2xl font-semibold text-white">{{ t('table.subtitle') }}</h2>
-            <p class="mt-2 text-sm text-slate-400">{{ t('table.description') }}</p>
+            <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('table.title') }}</p>
+            <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ t('table.subtitle') }}</h2>
+            <p class="mt-2 text-sm" :class="mutedClass">{{ t('table.description') }}</p>
           </div>
 
-          <div class="text-sm text-slate-400">
+          <div class="text-sm" :class="mutedClass">
             <span v-if="errorMessage" class="text-rose-300">{{ errorMessage }}</span>
             <span v-else>{{ t('table.visibleResults', { count: filteredLocations.length }) }}</span>
           </div>
@@ -542,14 +637,14 @@ onMounted(() => {
             </dl>
           </article>
 
-          <div v-if="!filteredLocations.length" class="px-5 py-8 text-center text-slate-400">
+          <div v-if="!filteredLocations.length" class="px-5 py-8 text-center" :class="mutedClass">
             {{ t('states.noResults') }}
           </div>
         </div>
 
         <div class="hidden lg:block">
           <table class="min-w-full divide-y divide-white/8 text-left text-sm">
-            <thead class="bg-slate-950/35 text-xs uppercase tracking-[0.18em] text-slate-400">
+            <thead :class="tableHeaderClass">
               <tr>
                 <th class="px-5 py-4"><button type="button" class="cursor-pointer" @click="toggleSort('name')">{{ t('table.columns.name') }}</button></th>
                 <th class="px-5 py-4"><button type="button" class="cursor-pointer" @click="toggleSort('municipality')">{{ t('table.columns.municipality') }}</button></th>
@@ -559,7 +654,7 @@ onMounted(() => {
                 <th class="px-5 py-4">{{ t('table.columns.contact') }}</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-white/5 text-slate-200">
+            <tbody :class="tableBodyClass">
               <tr
                 v-for="location in filteredLocations"
                 :key="location.id"
@@ -568,19 +663,19 @@ onMounted(() => {
                 @click="selectedId = location.id"
               >
                 <td class="px-5 py-4 align-top">
-                  <div class="font-medium text-white">{{ location.name }}</div>
+                  <div class="font-medium" :class="headingClass">{{ location.name }}</div>
                 </td>
                 <td class="px-5 py-4 align-top">{{ formatText(location.municipality) }}</td>
                 <td class="px-5 py-4 align-top">{{ formatText(location.activityType) }}</td>
                 <td class="px-5 py-4 align-top">{{ formatText(location.address) }}</td>
                 <td class="px-5 py-4 align-top">{{ formatText(location.reference) }}</td>
-                <td class="px-5 py-4 align-top text-slate-400">
+                 <td class="px-5 py-4 align-top" :class="mutedClass">
                   <div>{{ formatText(location.phone) }}</div>
                   <div>{{ formatText(location.email) }}</div>
                 </td>
               </tr>
               <tr v-if="!filteredLocations.length">
-                <td colspan="6" class="px-5 py-8 text-center text-slate-400">{{ t('states.noResults') }}</td>
+                <td colspan="6" class="px-5 py-8 text-center" :class="mutedClass">{{ t('states.noResults') }}</td>
               </tr>
             </tbody>
           </table>

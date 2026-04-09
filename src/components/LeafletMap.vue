@@ -19,6 +19,10 @@ let map: L.Map | null = null
 let markerLayer: L.MarkerClusterGroup | null = null
 const mapId = `map-${Math.random().toString(36).slice(2, 8)}`
 let resizeObserver: ResizeObserver | null = null
+const canaryBounds = L.latLngBounds([
+  [27.4, -18.6],
+  [29.9, -12.4],
+])
 
 function buildPopup(location: LocationRecord) {
   const lines = [`<strong>${location.name}</strong>`, location.municipality, location.address].filter(Boolean)
@@ -44,7 +48,7 @@ function renderMarkers(shouldFitBounds = true) {
   markerLayer.clearLayers()
 
   if (!props.locations.length) {
-    map.setView([28.4636, -16.2518], 10)
+    map.setView([28.4636, -16.2518], 9)
     return
   }
 
@@ -63,7 +67,7 @@ function renderMarkers(shouldFitBounds = true) {
   }
 
   if (shouldFitBounds) {
-    map.fitBounds(bounds, {
+    map.fitBounds(bounds.pad(0.12), {
       padding: [36, 36],
       maxZoom: 14,
     })
@@ -71,7 +75,12 @@ function renderMarkers(shouldFitBounds = true) {
 }
 
 onMounted(() => {
-  map = L.map(mapId, { zoomControl: false }).setView([28.4636, -16.2518], 10)
+  map = L.map(mapId, {
+    zoomControl: false,
+    maxBounds: canaryBounds,
+    maxBoundsViscosity: 1,
+    minZoom: 8,
+  }).setView([28.4636, -16.2518], 9)
   L.control.zoom({ position: 'topright' }).addTo(map)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
