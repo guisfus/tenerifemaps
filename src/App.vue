@@ -380,7 +380,7 @@ onMounted(() => {
         </div>
 
         <p class="max-w-2xl text-sm leading-6 sm:text-base" :class="mutedClass">
-          Visualiza datasets georreferenciados de Tenerife con un mapa interactivo, filtros potentes y una experiencia bilingue.
+          Visualiza datasets georreferenciados de Tenerife con un mapa interactivo y filtros potentes.
         </p>
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]">
@@ -512,7 +512,7 @@ onMounted(() => {
         </article>
 
         <aside class="space-y-6">
-          <article class="p-5" :class="panelClass">
+          <article class="border-t p-5" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
             <div class="flex items-center justify-between gap-4">
               <div>
                 <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('insights.title') }}</p>
@@ -528,7 +528,7 @@ onMounted(() => {
             <BarChart v-else :items="chartItems" :empty-label="t('states.noChartData')" />
           </article>
 
-          <article class="p-5" :class="panelClass">
+          <article class="border-t p-5" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
             <div class="flex items-center justify-between gap-3">
               <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('details.title') }}</p>
               <span v-if="hasActiveFilters" class="text-xs text-sky-300">{{ t('filters.active') }}</span>
