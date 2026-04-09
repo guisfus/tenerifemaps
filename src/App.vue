@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import BarChart from './components/BarChart.vue'
 import LeafletMap from './components/LeafletMap.vue'
 import { DATASETS, getDatasetPresentation } from './data/datasets'
-import { fetchDatasetLocations } from './services/geojson'
+import { fetchDatasetLocations, fetchDatasetSummaries } from './services/geojson'
 import type { DatasetSummary, LocationRecord, SortKey } from './types'
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
@@ -25,65 +25,23 @@ const errorMessage = ref('')
 const lastUpdated = ref('')
 const locations = ref<LocationRecord[]>([])
 const datasetSummaries = ref<DatasetSummary[]>([])
+const municipalityOptions = ref<string[]>([])
+const activityOptions = ref<string[]>([])
 const sortKey = ref<SortKey>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 const theme = ref<ThemeMode>('dark')
+let searchDebounce: number | null = null
+let suppressQueryReload = false
 
 // Dataset metadata is stored separately from loaded records so the same UI can
 // switch sources without changing the rendering logic.
 const currentDataset = computed(() => DATASETS.find((dataset) => dataset.key === activeDatasetKey.value) ?? DATASETS[0])
 const datasetPresentation = computed(() => getDatasetPresentation(currentDataset.value, locale.value))
 
-const municipalityOptions = computed(() => [...new Set(locations.value.map((item) => item.municipality).filter(Boolean))].sort((a, b) => a.localeCompare(b, locale.value)))
-const activityOptions = computed(() => [...new Set(locations.value.map((item) => item.activityType).filter(Boolean))].sort((a, b) => a.localeCompare(b, locale.value)))
 const hasActiveFilters = computed(() => search.value || selectedMunicipality.value !== 'all' || selectedActivity.value !== 'all' || contactFilter.value !== 'all')
-
-// Filtering and sorting live in a single computed value so every visual block
-// reads the same consistent subset of locations.
-const filteredLocations = computed(() => {
-  const query = search.value.trim().toLowerCase()
-
-  const result = locations.value.filter((location) => {
-    if (selectedMunicipality.value !== 'all' && location.municipality !== selectedMunicipality.value) {
-      return false
-    }
-
-    if (selectedActivity.value !== 'all' && location.activityType !== selectedActivity.value) {
-      return false
-    }
-
-    const hasContact = Boolean(location.phone || location.email || location.website)
-
-    if (contactFilter.value === 'withContact' && !hasContact) {
-      return false
-    }
-
-    if (contactFilter.value === 'withoutContact' && hasContact) {
-      return false
-    }
-
-    if (!query) {
-      return true
-    }
-
-    return [location.name, location.municipality, location.address, location.reference, location.activityType]
-      .join(' ')
-      .toLowerCase()
-      .includes(query)
-  })
-
-  return [...result].sort((a, b) => {
-    const left = (a[sortKey.value] ?? '').toString().toLowerCase()
-    const right = (b[sortKey.value] ?? '').toString().toLowerCase()
-    const order = left.localeCompare(right, locale.value)
-
-    return sortDirection.value === 'asc' ? order : -order
-  })
-})
-
-const selectedLocation = computed(() => filteredLocations.value.find((location) => location.id === selectedId.value) ?? null)
-const municipalitiesCount = computed(() => new Set(filteredLocations.value.map((item) => item.municipality).filter(Boolean)).size)
-const activityCount = computed(() => new Set(filteredLocations.value.map((item) => item.activityType).filter(Boolean)).size)
+const selectedLocation = computed(() => locations.value.find((location) => location.id === selectedId.value) ?? null)
+const municipalitiesCount = computed(() => new Set(locations.value.map((item) => item.municipality).filter(Boolean)).size)
+const activityCount = computed(() => new Set(locations.value.map((item) => item.activityType).filter(Boolean)).size)
 const isLightTheme = computed(() => theme.value === 'light')
 const chartItems = computed(() =>
   datasetSummaries.value.map((item) => ({
@@ -182,10 +140,14 @@ function toggleSort(nextKey: SortKey) {
 }
 
 function resetFilters() {
+  suppressQueryReload = true
   search.value = ''
   selectedMunicipality.value = 'all'
   selectedActivity.value = 'all'
   contactFilter.value = 'all'
+  sortKey.value = 'name'
+  sortDirection.value = 'asc'
+  suppressQueryReload = false
 }
 
 // CSV export reuses the current filtered subset so the downloaded file always
@@ -205,7 +167,7 @@ function exportCsv() {
     t('details.website'),
   ]
 
-  const lines = filteredLocations.value.map((item) => [
+  const lines = locations.value.map((item) => [
     item.name,
     item.municipality,
     item.address,
@@ -229,25 +191,35 @@ async function loadDataset() {
   errorMessage.value = ''
 
   try {
-    // Records are normalized inside the service layer, so the component only
-    // consumes a clean typed structure.
-    const records = await fetchDatasetLocations(currentDataset.value)
-    locations.value = records
-    resetFilters()
-    selectedId.value = records[0]?.id ?? null
-    lastUpdated.value = new Date().toISOString()
+    const payload = await fetchDatasetLocations(currentDataset.value, {
+      search: search.value,
+      municipality: selectedMunicipality.value,
+      activity: selectedActivity.value,
+      contact: contactFilter.value,
+      sort: sortKey.value,
+      direction: sortDirection.value,
+    })
+
+    locations.value = payload.items
+    municipalityOptions.value = payload.municipalities
+    activityOptions.value = payload.activities
+    lastUpdated.value = payload.fetchedAt
+
+    if (!selectedId.value) {
+      selectedId.value = payload.items[0]?.id ?? null
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
     errorMessage.value = message
     locations.value = []
+    municipalityOptions.value = []
+    activityOptions.value = []
     selectedId.value = null
   } finally {
     loading.value = false
   }
 }
 
-// The side chart compares the full volume of every configured dataset. This is
-// loaded once on startup and then served from the service cache.
 async function loadChartSummaries() {
   if (chartLoading.value || datasetSummaries.value.length) {
     return
@@ -256,17 +228,8 @@ async function loadChartSummaries() {
   chartLoading.value = true
 
   try {
-    datasetSummaries.value = await Promise.all(
-      DATASETS.map(async (dataset) => {
-        const records = await fetchDatasetLocations(dataset)
-
-        return {
-          key: dataset.key,
-          dataset,
-          count: records.length,
-        } satisfies DatasetSummary
-      }),
-    )
+    const payload = await fetchDatasetSummaries()
+    datasetSummaries.value = payload.items
   } finally {
     chartLoading.value = false
   }
@@ -278,13 +241,25 @@ function queueChartSummaries() {
   }, 300)
 }
 
+function scheduleDatasetReload() {
+  if (searchDebounce) {
+    window.clearTimeout(searchDebounce)
+  }
+
+  searchDebounce = window.setTimeout(() => {
+    void loadDataset()
+  }, 180)
+}
+
 watch(activeDatasetKey, () => {
+  resetFilters()
+  selectedId.value = null
   void loadDataset()
 })
 
 // Keep the detail panel valid after filters change. If the selected record is
 // no longer visible, automatically select the first remaining result.
-watch(filteredLocations, (nextLocations) => {
+watch(locations, (nextLocations) => {
   if (!nextLocations.length) {
     selectedId.value = null
     return
@@ -295,6 +270,22 @@ watch(filteredLocations, (nextLocations) => {
   if (!stillVisible) {
     selectedId.value = nextLocations[0]?.id ?? null
   }
+})
+
+watch([selectedMunicipality, selectedActivity, contactFilter, sortKey, sortDirection], () => {
+  if (suppressQueryReload) {
+    return
+  }
+
+  void loadDataset()
+})
+
+watch(search, () => {
+  if (suppressQueryReload) {
+    return
+  }
+
+  scheduleDatasetReload()
 })
 
 watch(locale, (nextLocale) => {
@@ -471,7 +462,7 @@ onMounted(() => {
           </span>
           <span class="inline-flex items-center gap-2">
             <span :class="subtleClass">{{ t('metrics.totalLocations') }}</span>
-            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ filteredLocations.length }}</span>
+            <span class="font-medium" :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ locations.length }}</span>
           </span>
           <span class="inline-flex items-center gap-2">
             <span :class="subtleClass">{{ t('metrics.municipalities') }}</span>
@@ -496,7 +487,7 @@ onMounted(() => {
             </div>
             <div class="text-sm" :class="mutedClass">
               <div>{{ t('map.lastSync') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ formatDate(lastUpdated) }}</span></div>
-              <div>{{ t('map.filteredResults') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ filteredLocations.length }}</span></div>
+              <div>{{ t('map.filteredResults') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ locations.length }}</span></div>
             </div>
           </div>
 
@@ -507,7 +498,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <LeafletMap :locations="filteredLocations" :selected-id="selectedId" @select="selectedId = $event" />
+            <LeafletMap :locations="locations" :selected-id="selectedId" @select="selectedId = $event" />
           </div>
         </article>
 
@@ -595,13 +586,13 @@ onMounted(() => {
 
           <div class="text-sm" :class="mutedClass">
             <span v-if="errorMessage" class="text-rose-300">{{ errorMessage }}</span>
-            <span v-else>{{ t('table.visibleResults', { count: filteredLocations.length }) }}</span>
+            <span v-else>{{ t('table.visibleResults', { count: locations.length }) }}</span>
           </div>
         </div>
 
         <div class="divide-y divide-white/8 lg:hidden">
           <article
-            v-for="location in filteredLocations"
+            v-for="location in locations"
             :key="location.id"
             class="cursor-pointer space-y-4 border-l-4 px-5 py-5 transition"
             :class="location.id === selectedId ? 'border-l-sky-400 bg-sky-400/14' : 'border-l-transparent odd:bg-white/[0.06] even:bg-slate-950/34'"
@@ -637,7 +628,7 @@ onMounted(() => {
             </dl>
           </article>
 
-          <div v-if="!filteredLocations.length" class="px-5 py-8 text-center" :class="mutedClass">
+          <div v-if="!locations.length" class="px-5 py-8 text-center" :class="mutedClass">
             {{ t('states.noResults') }}
           </div>
         </div>
@@ -656,7 +647,7 @@ onMounted(() => {
             </thead>
             <tbody :class="tableBodyClass">
               <tr
-                v-for="location in filteredLocations"
+                v-for="location in locations"
                 :key="location.id"
                 class="cursor-pointer border-l-2 border-transparent transition hover:bg-white/5"
                 :class="location.id === selectedId ? 'border-l-sky-400 bg-sky-400/10' : 'odd:bg-white/[0.02] even:bg-slate-950/18'"
@@ -674,7 +665,7 @@ onMounted(() => {
                   <div>{{ formatText(location.email) }}</div>
                 </td>
               </tr>
-              <tr v-if="!filteredLocations.length">
+              <tr v-if="!locations.length">
                 <td colspan="6" class="px-5 py-8 text-center" :class="mutedClass">{{ t('states.noResults') }}</td>
               </tr>
             </tbody>
