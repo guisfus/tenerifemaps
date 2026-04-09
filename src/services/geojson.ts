@@ -83,10 +83,24 @@ export async function fetchDatasetLocations(dataset: DatasetDefinition) {
     return cache.get(dataset.key) ?? []
   }
 
-  const response = await fetch(dataset.url)
+  // The browser always talks to the local app origin. A small server-side proxy
+  // fetches the remote GeoJSON to avoid CORS issues in production.
+  const response = await fetch(`/api/dataset?key=${encodeURIComponent(dataset.key)}`)
 
   if (!response.ok) {
-    throw new Error(`Dataset request failed with status ${response.status}`)
+    let message = `Dataset request failed with status ${response.status}`
+
+    try {
+      const payload = (await response.json()) as { error?: string }
+
+      if (payload.error) {
+        message = payload.error
+      }
+    } catch {
+      // Ignore malformed error payloads and keep the fallback message.
+    }
+
+    throw new Error(message)
   }
 
   const payload = (await response.json()) as GeoJsonResponse

@@ -182,6 +182,10 @@ async function loadDataset() {
 // The side chart compares the full volume of every configured dataset. This is
 // loaded once on startup and then served from the service cache.
 async function loadChartSummaries() {
+  if (chartLoading.value || datasetSummaries.value.length) {
+    return
+  }
+
   chartLoading.value = true
 
   try {
@@ -199,6 +203,12 @@ async function loadChartSummaries() {
   } finally {
     chartLoading.value = false
   }
+}
+
+function queueChartSummaries() {
+  window.setTimeout(() => {
+    void loadChartSummaries()
+  }, 300)
 }
 
 watch(activeDatasetKey, () => {
@@ -227,41 +237,56 @@ watch(locale, (nextLocale) => {
 // Initial load fetches the active dataset and the cross-dataset summary chart.
 onMounted(() => {
   document.documentElement.lang = locale.value
-  void loadDataset()
-  void loadChartSummaries()
+  void loadDataset().finally(() => {
+    queueChartSummaries()
+  })
 })
 </script>
 
 <template>
   <div class="min-h-screen text-slate-100">
     <header class="border-b border-white/8 bg-slate-950/40 backdrop-blur-xl">
-      <div class="flex w-full flex-col gap-8 px-4 py-5 sm:px-6 xl:px-8 2xl:px-10">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-center gap-3">
-            <div class="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.75)]" />
-            <p class="text-sm font-semibold uppercase tracking-[0.28em] text-slate-100">Tenerife Maps</p>
+      <div class="flex w-full flex-col gap-4 px-4 py-5 sm:px-6 xl:px-8 2xl:px-10">
+        <div class="flex items-start justify-between gap-4">
+          <div class="space-y-3">
+            <div class="flex items-center gap-3">
+              <div class="h-3.5 w-3.5 rounded-full bg-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.75)]" />
+              <p class="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-300/90">Open data explorer</p>
+            </div>
+            <h1 class="text-3xl font-semibold tracking-tight text-white sm:text-4xl xl:text-5xl">Tenerife Maps</h1>
           </div>
 
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label class="min-w-[150px]">
+          <div class="flex shrink-0 items-center gap-2">
+            <label class="relative">
               <span class="sr-only">{{ t('controls.language') }}</span>
               <select
                 v-model="locale"
-                class="w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60"
+                class="min-w-[78px] appearance-none rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 pr-7 text-xs font-medium text-white outline-none transition focus:border-sky-400/60"
               >
-                <option value="es">Español</option>
-                <option value="en">English</option>
+                <option value="es">ES</option>
+                <option value="en">EN</option>
               </select>
+              <span class="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[10px] text-slate-400">▾</span>
             </label>
-            <button
-              type="button"
-              class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-white/10"
-              @click="loadDataset"
+            <a
+              href="https://github.com/guisfus/tenerifemaps"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Ver en GitHub"
+              class="group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/25 bg-linear-to-r from-sky-400/14 via-cyan-400/10 to-emerald-400/14 text-sky-100 transition hover:border-sky-300/40 hover:from-sky-400/22 hover:to-emerald-400/22"
             >
-              {{ t('controls.refresh') }}
-            </button>
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current transition group-hover:text-white">
+                <path
+                  d="M12 2C6.477 2 2 6.589 2 12.248c0 4.526 2.865 8.365 6.839 9.72.5.096.682-.222.682-.493 0-.243-.009-.887-.014-1.741-2.782.619-3.369-1.37-3.369-1.37-.455-1.177-1.11-1.49-1.11-1.49-.908-.636.069-.623.069-.623 1.004.072 1.532 1.063 1.532 1.063.892 1.566 2.341 1.114 2.91.852.091-.664.349-1.114.635-1.37-2.221-.259-4.556-1.14-4.556-5.073 0-1.121.39-2.038 1.029-2.756-.103-.26-.446-1.304.098-2.719 0 0 .84-.277 2.75 1.053A9.303 9.303 0 0 1 12 6.836a9.27 9.27 0 0 1 2.504.347c1.909-1.33 2.748-1.053 2.748-1.053.546 1.415.203 2.459.1 2.719.64.718 1.028 1.635 1.028 2.756 0 3.943-2.338 4.811-4.566 5.065.359.319.678.948.678 1.911 0 1.38-.012 2.492-.012 2.83 0 .274.18.594.688.492C19.138 20.608 22 16.772 22 12.248 22 6.589 17.523 2 12 2Z"
+                />
+              </svg>
+            </a>
           </div>
         </div>
+
+        <p class="max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
+          Visualiza datasets georreferenciados de Tenerife con un mapa interactivo, filtros potentes y una experiencia bilingue.
+        </p>
 
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]">
           <label class="min-w-0 space-y-2">
@@ -322,6 +347,13 @@ onMounted(() => {
           <div class="min-w-0 flex flex-col gap-3 sm:flex-row sm:items-end xl:justify-end">
             <button
               type="button"
+              class="rounded-xl border border-sky-400/25 bg-sky-400/10 px-4 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-400/20"
+              @click="loadDataset"
+            >
+              {{ t('controls.refresh') }}
+            </button>
+            <button
+              type="button"
               class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-white/10"
               @click="resetFilters"
             >
@@ -336,29 +368,29 @@ onMounted(() => {
             </button>
           </div>
         </div>
+
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/8 pt-2 text-[11px] text-slate-400">
+          <span class="inline-flex items-center gap-2">
+            <span class="text-slate-500">{{ t('metrics.activeCategory') }}</span>
+            <span class="font-medium text-slate-200">{{ datasetPresentation.title }}</span>
+          </span>
+          <span class="inline-flex items-center gap-2">
+            <span class="text-slate-500">{{ t('metrics.totalLocations') }}</span>
+            <span class="font-medium text-slate-200">{{ filteredLocations.length }}</span>
+          </span>
+          <span class="inline-flex items-center gap-2">
+            <span class="text-slate-500">{{ t('metrics.municipalities') }}</span>
+            <span class="font-medium text-slate-200">{{ municipalitiesCount }}</span>
+          </span>
+          <span class="inline-flex items-center gap-2">
+            <span class="text-slate-500">{{ t('metrics.activityTypes') }}</span>
+            <span class="font-medium text-slate-200">{{ activityCount }}</span>
+          </span>
+        </div>
       </div>
     </header>
 
-    <main class="flex w-full flex-col gap-8 px-4 py-6 sm:px-6 xl:px-8 2xl:px-10 lg:py-8">
-      <section class="grid gap-px overflow-hidden border-y border-white/8 bg-white/8 md:grid-cols-2 xl:grid-cols-4">
-        <article class="bg-transparent px-5 py-5 backdrop-blur-sm">
-          <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('metrics.activeCategory') }}</p>
-          <p class="mt-3 text-2xl font-semibold text-white">{{ datasetPresentation.title }}</p>
-        </article>
-        <article class="bg-transparent px-5 py-5 backdrop-blur-sm">
-          <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('metrics.totalLocations') }}</p>
-          <p class="mt-3 text-4xl font-semibold text-white">{{ filteredLocations.length }}</p>
-        </article>
-        <article class="bg-transparent px-5 py-5 backdrop-blur-sm">
-          <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('metrics.municipalities') }}</p>
-          <p class="mt-3 text-4xl font-semibold text-white">{{ municipalitiesCount }}</p>
-        </article>
-        <article class="bg-transparent px-5 py-5 backdrop-blur-sm">
-          <p class="text-xs uppercase tracking-[0.22em] text-slate-500">{{ t('metrics.activityTypes') }}</p>
-          <p class="mt-3 text-4xl font-semibold text-white">{{ activityCount }}</p>
-        </article>
-      </section>
-
+    <main class="flex w-full flex-col gap-6 px-4 py-4 sm:px-6 xl:px-8 2xl:px-10 lg:py-5">
       <section class="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1.7fr)_420px]">
         <article class="flex min-h-[760px] flex-col border-y border-white/8 bg-transparent">
           <div class="flex flex-col gap-4 border-b border-white/8 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
@@ -374,7 +406,7 @@ onMounted(() => {
           </div>
 
           <div class="relative flex-1">
-            <div v-if="loading" class="absolute inset-0 z-10 grid place-items-center bg-slate-950/70 backdrop-blur-sm">
+              <div v-if="loading" class="absolute inset-0 z-10 grid place-items-center bg-slate-950/70 backdrop-blur-sm">
               <div class="border border-white/10 bg-white/10 px-4 py-2 text-sm text-slate-100">
                 {{ t('states.loading') }}
               </div>
@@ -395,7 +427,10 @@ onMounted(() => {
                 {{ chartLoading ? t('states.loading') : t('insights.ready') }}
               </span>
             </div>
-            <BarChart :items="chartItems" :empty-label="t('states.noChartData')" />
+            <div v-if="chartLoading && !chartItems.length" class="mt-5 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-8 text-center text-sm text-slate-400">
+              {{ t('states.loading') }}
+            </div>
+            <BarChart v-else :items="chartItems" :empty-label="t('states.noChartData')" />
           </article>
 
           <article class="border-y border-white/8 bg-transparent p-5">
@@ -436,7 +471,7 @@ onMounted(() => {
                   :href="selectedLocation.website"
                   target="_blank"
                   rel="noreferrer"
-                  class="border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-center text-sm font-medium text-sky-100 transition hover:bg-sky-400/20"
+                 class="border border-sky-400/20 bg-sky-400/10 px-4 py-3 text-center text-sm font-medium text-sky-100 transition hover:bg-sky-400/20"
                 >
                   {{ t('details.openWebsite') }}
                 </a>

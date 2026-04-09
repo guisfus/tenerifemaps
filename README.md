@@ -1,78 +1,95 @@
 # Tenerife Maps
 
-Aplicacion web moderna para explorar datasets georreferenciados de Tenerife a partir de fuentes GeoJSON publicas. El proyecto reconstruye `tenerifemapsv2` con una base mas mantenible, bilingue y preparada para evolucionar.
+Visor web bilingue de datasets GeoJSON de Tenerife con mapa interactivo, filtros avanzados y exportacion CSV.
 
-## Objetivos
+## Idea
 
-- Visualizar datasets abiertos en un mapa interactivo
-- Filtrar y ordenar registros sin depender del DOM manual
-- Ofrecer una experiencia bilingue en espanol e ingles
-- Permitir exportacion CSV del subconjunto filtrado
-- Mantener una arquitectura simple de frontend estatico
+Explorar datos abiertos georreferenciados de Tenerife en una interfaz rapida y visual para descubrir recursos, actividad economica y distribucion territorial en la isla.
+
+## Caracteristicas
+
+- Mapa interactivo con Leaflet y clustering de marcadores
+- Filtros por texto, municipio, actividad y disponibilidad de contacto
+- Tabla responsive sincronizada con el mapa
+- Exportacion CSV del subconjunto visible
+- Interfaz bilingue en espanol e ingles
+- Arquitectura preparada para despliegue estatico en Vercel
 
 ## Stack
 
-- Vue 3 + TypeScript
+- Vue 3
+- TypeScript
 - Vite
 - Tailwind CSS v4
 - Vue I18n
 - Leaflet
 - Leaflet MarkerCluster
+- Vercel Functions para proxy de datasets
 
-## Capacidades
+## Como funciona
 
-- Selector de dataset
-- Filtros por texto, municipio, actividad y disponibilidad de contacto
-- Tabla responsive con vista en tarjetas para movil
-- Mapa con clustering y seleccion sincronizada con la tabla
-- Resumen comparativo entre datasets
-- Exportacion CSV del resultado visible
+La aplicacion consume datasets GeoJSON publicos de Tenerife y los normaliza en un modelo interno comun para poder filtrarlos, compararlos y representarlos en un mapa.
+
+En produccion y en desarrollo la carga de datos pasa por un endpoint interno `/api/dataset`. Esto evita bloqueos de CORS al consultar los GeoJSON remotos desde el navegador.
 
 ## Estructura
 
 ```text
+api/
+  dataset.ts               # Proxy serverless para datasets en Vercel
 src/
-  App.vue                  # Orquestacion principal de estado y vistas
+  App.vue                  # Estado principal, filtros y vistas
   components/
     BarChart.vue           # Grafica comparativa simple
     LeafletMap.vue         # Integracion del mapa y clustering
   data/
     datasets.ts            # Catalogo de datasets remotos
+  server/
+    datasetProxy.ts        # Logica compartida del proxy para Vercel y Vite
   services/
     geojson.ts             # Carga, cache y normalizacion de GeoJSON
   i18n.ts                  # Textos bilingues
   types.ts                 # Tipos compartidos
 ```
 
-## Desarrollo
+## Desarrollo local
 
 ```bash
 npm install
 npm run dev
 ```
 
-La aplicacion se sirve normalmente en `http://localhost:5173`.
+La aplicacion suele abrirse en `http://localhost:5173`.
 
-## Produccion
+## Build de produccion
 
 ```bash
 npm run build
 ```
 
-El build generado queda en `dist/`.
+El resultado se genera en `dist/`.
 
-## Mantenimiento
+## Despliegue en Vercel
 
-### Anadir un nuevo dataset
+1. Sube este repositorio a GitHub.
+2. Importa el proyecto en Vercel.
+3. Verifica que detecta Vite.
+4. Usa `npm run build` como comando de build.
+5. Usa `dist` como directorio de salida.
+6. Despliega.
 
-1. Edita `src/data/datasets.ts`
-2. Anade `key`, `title`, `description` y `url`
-3. Verifica que el GeoJSON use coordenadas validas y propiedades similares a las ya soportadas
+No hace falta `vercel.json` para la configuracion basica de esta aplicacion.
 
-### Ajustar normalizacion de datos
+## Notas de arquitectura
 
-1. Edita `src/services/geojson.ts`
-2. Amplia `createRecord()` si el nuevo dataset usa nombres de campo diferentes
+- El frontend nunca consulta `datos.tenerife.es` directamente desde el navegador.
+- La ruta `/api/dataset` valida la clave del dataset y descarga el GeoJSON desde servidor.
+- En desarrollo, Vite expone esa misma ruta mediante un middleware local para mantener el mismo flujo que en produccion.
+- La cache de registros normalizados sigue siendo del lado cliente, una vez recibida la respuesta del proxy.
+
+## Fuente de datos
+
+Los datasets proceden de `datos.tenerife.es` y se consumen como GeoJSON publico.
 
 ## Documentacion adicional
 

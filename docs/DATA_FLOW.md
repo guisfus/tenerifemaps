@@ -4,10 +4,25 @@
 
 1. The user selects a dataset in the header.
 2. `App.vue` resolves the active dataset definition from `src/data/datasets.ts`.
-3. `fetchDatasetLocations()` requests the remote GeoJSON if it is not cached yet.
-4. The service normalizes each feature into a `LocationRecord`.
-5. The normalized array is stored in component state.
-6. Derived computed values filter, sort and aggregate the records for every visual block.
+3. `fetchDatasetLocations()` requests `/api/dataset?key=...` if the dataset is not cached yet.
+4. The proxy validates the key and fetches the remote GeoJSON server-side.
+5. The service normalizes each feature into a `LocationRecord`.
+6. The normalized array is stored in component state.
+7. Derived computed values filter, sort and aggregate the records for every visual block.
+
+## Proxy Flow
+
+### Development
+
+- Vite exposes `/api/dataset` through a local middleware
+- the middleware reuses `src/server/datasetProxy.ts`
+- the browser and the frontend code use the same route as production
+
+### Production
+
+- Vercel serves `/api/dataset` from `api/dataset.ts`
+- the function reuses `src/server/datasetProxy.ts`
+- successful responses include cache headers for CDN reuse
 
 ## Rendering Flow
 
