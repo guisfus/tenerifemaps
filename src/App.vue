@@ -73,10 +73,6 @@ const activityCount = computed(() => new Set(mapLocations.value.map((item) => it
 const isLightTheme = computed(() => theme.value === 'light')
 const currentRangeStart = computed(() => (totalResults.value ? (page.value - 1) * pageSize.value + 1 : 0))
 const currentRangeEnd = computed(() => Math.min(page.value * pageSize.value, totalResults.value))
-const mapLegend = computed(() => datasetMetadata.value ? {
-  geometryType: datasetMetadata.value.geometryType,
-  label: datasetMetadata.value.legendLabel,
-} : null)
 const chartItems = computed(() =>
   datasetSummaries.value.map((item) => ({
     key: item.key,
@@ -718,16 +714,6 @@ onMounted(() => {
               </div>
             </dl>
 
-            <div v-if="mapLegend" class="mt-4 rounded-xl border px-4 py-3" :class="isLightTheme ? 'border-slate-300 bg-white/80' : 'border-white/10 bg-slate-950/30'">
-              <p class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.legend') }}</p>
-              <div class="mt-3 flex items-center gap-3 text-sm">
-                <span class="tm-marker" />
-                <div>
-                  <div :class="headingClass">{{ mapLegend.geometryType }}</div>
-                  <div :class="mutedClass">{{ mapLegend.label }}</div>
-                </div>
-              </div>
-            </div>
           </article>
 
           <article class="overflow-hidden rounded-xl border p-5" :class="isLightTheme ? 'border-slate-300/80 bg-white/35' : 'border-white/8 bg-white/[0.02]'">
