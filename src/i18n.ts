@@ -16,6 +16,7 @@ export const i18n = createI18n({
       },
       controls: {
         dataset: 'Dataset activo',
+        datasetSearchPlaceholder: 'Buscar dataset o categoria',
         language: 'Idioma',
         search: 'Busqueda',
         searchPlaceholder: 'Buscar por nombre, municipio, direccion o actividad',
@@ -61,6 +62,14 @@ export const i18n = createI18n({
         sendEmail: 'Enviar email',
         empty: 'Selecciona una ubicacion en el mapa o en la tabla para inspeccionar su ficha.',
       },
+      metadata: {
+        title: 'Metadatos del dataset',
+        source: 'Fuente',
+        updatedAt: 'Actualizacion',
+        license: 'Licencia',
+        originalLink: 'Enlace original',
+        legend: 'Leyenda',
+      },
       table: {
         title: 'Inventario',
         subtitle: 'Tabla filtrable y exportable',
@@ -93,6 +102,7 @@ export const i18n = createI18n({
       },
       controls: {
         dataset: 'Active dataset',
+        datasetSearchPlaceholder: 'Search datasets or categories',
         language: 'Language',
         search: 'Search',
         searchPlaceholder: 'Search by name, municipality, address or activity',
@@ -137,6 +147,14 @@ export const i18n = createI18n({
         openWebsite: 'Open website',
         sendEmail: 'Send email',
         empty: 'Select a location from the map or table to inspect its record.',
+      },
+      metadata: {
+        title: 'Dataset metadata',
+        source: 'Source',
+        updatedAt: 'Updated',
+        license: 'License',
+        originalLink: 'Original link',
+        legend: 'Legend',
       },
       table: {
         title: 'Inventory',

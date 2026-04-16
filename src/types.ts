@@ -6,7 +6,23 @@ export type DatasetDefinition = {
   key: string
   title: Record<LocaleCode, string>
   description: Record<LocaleCode, string>
+  category: string
   url: string
+  resourceId?: string
+  packageId?: string
+}
+
+/** Metadata exposed to the UI for the currently active dataset. */
+export type DatasetMetadata = {
+  title: string
+  description: string
+  source: string
+  sourceUrl: string
+  originalUrl: string
+  updatedAt: string
+  license: string
+  geometryType: string
+  legendLabel: string
 }
 
 /** Normalized shape consumed by the app after parsing raw GeoJSON features. */

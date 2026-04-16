@@ -1,4 +1,4 @@
-import type { DatasetDefinition, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
+import type { DatasetDefinition, DatasetMetadata, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
 type SortDirection = 'asc' | 'desc'
@@ -10,6 +10,7 @@ type LocationsResponse = {
   activities: string[]
   fetchedAt: string
   pagination: PaginationMeta
+  dataset: DatasetMetadata
 }
 
 type SummaryResponse = {
@@ -25,6 +26,7 @@ type DatasetRequestOptions = {
   direction: SortDirection
   page: number
   pageSize: number
+  locale: string
   refresh?: boolean
 }
 
@@ -59,6 +61,7 @@ export async function fetchDatasetLocations(dataset: DatasetDefinition, options:
     direction: options.direction,
     page: String(options.page),
     pageSize: String(options.pageSize),
+    locale: options.locale,
     refresh: options.refresh ? '1' : '0',
   })
 

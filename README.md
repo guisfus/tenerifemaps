@@ -2,7 +2,7 @@
 
 Tenerife Maps is a bilingual web application for exploring public GeoJSON datasets from Tenerife through a map-first interface.
 
-It combines open geospatial data, server-side querying, synchronized map and table views, and CSV export into a single application built with Vue, Leaflet, and Vercel Functions.
+It combines open geospatial data, CKAN-backed metadata resolution, server-side querying, synchronized map and table views, and CSV export into a single application built with Vue, Leaflet, and Vercel Functions.
 
 ## Highlights
 
@@ -12,6 +12,9 @@ It combines open geospatial data, server-side querying, synchronized map and tab
 - Synchronized selection between map, detail panel, and inventory
 - Server-side CSV export for the current filtered result set
 - Server-side pagination for the inventory table
+- CKAN metadata fallback for dataset URLs and dataset information
+- Shareable state through URL parameters
+- Dataset grouping by category with a lightweight selector search
 - Spanish and English user interface
 
 ## Stack
@@ -57,7 +60,7 @@ The production output is written to `dist/`.
 
 The application loads public Tenerife GeoJSON datasets, normalizes them into a shared internal record model, and renders them through a unified map and inventory interface.
 
-The frontend delegates dataset processing to server-side endpoints. The server retrieves the source GeoJSON, normalizes it, applies filtering, sorting, pagination, and summary aggregation, and returns UI-ready payloads to the browser.
+The frontend delegates dataset processing to server-side endpoints. The server resolves dataset URLs and metadata through CKAN when available, falls back to the static download URL when needed, normalizes the source GeoJSON, applies filtering, sorting, pagination, and summary aggregation, and returns UI-ready payloads to the browser.
 
 ## Data Source
 
@@ -79,6 +82,7 @@ src/
   data/
     datasets.ts            # Dataset catalog
   server/
+    ckan.ts                 # CKAN resolution and metadata helpers
     datasetProxy.ts        # Raw GeoJSON proxy logic
     locations.ts           # Server-side normalization and query layer
   services/

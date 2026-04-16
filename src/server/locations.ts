@@ -1,6 +1,8 @@
 import { DATASETS } from '../data/datasets.js'
+import { getDatasetPresentation } from '../data/datasets.js'
 import { fetchDatasetPayload } from './datasetProxy.js'
-import type { DatasetDefinition, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
+import { resolveDatasetMetadata } from './ckan.js'
+import type { DatasetDefinition, DatasetMetadata, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
 
 type Feature = {
   properties?: Record<string, unknown>
@@ -36,6 +38,7 @@ type LocationsSuccess = {
     activities: string[]
     fetchedAt: string
     pagination: PaginationMeta
+    dataset: DatasetMetadata
   }
   cacheControl: string
 }
@@ -66,6 +69,7 @@ export type LocationsQuery = {
   page: number
   pageSize: number
   refresh: boolean
+  locale: LocaleCode
 }
 
 export type LocationsResult = LocationsSuccess | Failure
@@ -255,6 +259,8 @@ function buildCsv(items: LocationRecord[], locale: LocaleCode) {
 }
 
 export function parseLocationsQuery(searchParams: URLSearchParams): LocationsQuery {
+  const locale = parseLocale(searchParams)
+
   return {
     dataset: searchParams.get('dataset') ?? '',
     search: searchParams.get('search') ?? '',
@@ -266,6 +272,7 @@ export function parseLocationsQuery(searchParams: URLSearchParams): LocationsQue
     page: parsePositiveInteger(searchParams.get('page'), 1),
     pageSize: Math.min(parsePositiveInteger(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE),
     refresh: searchParams.get('refresh') === '1',
+    locale,
   }
 }
 
@@ -325,6 +332,22 @@ async function resolveDataset(query: LocationsQuery): Promise<{ dataset: Dataset
   return { dataset, entry }
 }
 
+function buildInlineMetadata(dataset: DatasetDefinition, locale: LocaleCode) {
+  const presentation = getDatasetPresentation(dataset, locale)
+
+  return {
+    title: presentation.title,
+    description: presentation.description,
+    source: 'datos.tenerife.es',
+    sourceUrl: dataset.url,
+    originalUrl: dataset.url,
+    updatedAt: '',
+    license: '',
+    geometryType: 'Point',
+    legendLabel: locale === 'en' ? 'Each marker represents one matching location' : 'Cada marcador representa una ubicacion coincidente',
+  } satisfies DatasetMetadata
+}
+
 function queryDatasetItems(entry: DatasetCacheEntry, query: LocationsQuery) {
   const filteredItems = applySorting(applyFilters(entry.items, query), query)
   const pagination = buildPagination(filteredItems.length, query.page, query.pageSize)
@@ -346,6 +369,7 @@ export async function getLocationsPayload(query: LocationsQuery): Promise<Locati
   }
 
   const result = queryDatasetItems(resolved.entry, query)
+  const metadata = await resolveDatasetMetadata(resolved.dataset, query.locale, { forceFresh: query.refresh }).catch(() => buildInlineMetadata(resolved.dataset, query.locale))
 
   return {
     status: 200,
@@ -356,6 +380,7 @@ export async function getLocationsPayload(query: LocationsQuery): Promise<Locati
       activities: result.options.activities,
       fetchedAt: resolved.entry.fetchedAt,
       pagination: result.pagination,
+      dataset: metadata,
     },
     cacheControl: CACHE_CONTROL,
   }

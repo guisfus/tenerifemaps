@@ -3,12 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BarChart from './components/BarChart.vue'
 import LeafletMap from './components/LeafletMap.vue'
-import { DATASETS, getDatasetPresentation } from './data/datasets'
+import { DATASETS, getDatasetCategoryLabel, getDatasetPresentation } from './data/datasets'
 import { buildDatasetExportUrl, fetchDatasetLocations, fetchDatasetSummaries } from './services/geojson'
-import type { DatasetSummary, LocationRecord, SortKey } from './types'
+import type { DatasetMetadata, DatasetSummary, LocationRecord, SortKey } from './types'
 
 type ContactFilter = 'all' | 'withContact' | 'withoutContact'
 type ThemeMode = 'dark' | 'light'
+type MapViewport = { lat: number; lng: number; zoom: number }
 
 const { t, locale } = useI18n()
 
@@ -16,6 +17,7 @@ const { t, locale } = useI18n()
 const activeDatasetKey = ref(DATASETS[0].key)
 const selectedId = ref<string | null>(null)
 const search = ref('')
+const datasetSearch = ref('')
 const selectedMunicipality = ref('all')
 const selectedActivity = ref('all')
 const contactFilter = ref<ContactFilter>('all')
@@ -35,14 +37,41 @@ const page = ref(1)
 const pageSize = ref(25)
 const totalResults = ref(0)
 const pageCount = ref(1)
+const datasetMetadata = ref<DatasetMetadata | null>(null)
+const mapViewport = ref<MapViewport | null>(null)
 let searchDebounce: number | null = null
 let suppressQueryReload = false
+let suppressUrlSync = false
 
 // Dataset metadata is stored separately from loaded records so the same UI can
 // switch sources without changing the rendering logic.
 const currentDataset = computed(() => DATASETS.find((dataset) => dataset.key === activeDatasetKey.value) ?? DATASETS[0])
 const datasetPresentation = computed(() => getDatasetPresentation(currentDataset.value, locale.value))
 const pageSizeOptions = [25, 50, 100]
+const filteredDatasetGroups = computed(() => {
+  const query = datasetSearch.value.trim().toLowerCase()
+  const grouped = new Map<string, typeof DATASETS>()
+
+  for (const dataset of DATASETS) {
+    const presentation = getDatasetPresentation(dataset, locale.value)
+    const categoryLabel = getDatasetCategoryLabel(dataset.category, locale.value)
+    const haystack = [presentation.title, presentation.description, categoryLabel].join(' ').toLowerCase()
+
+    if (query && !haystack.includes(query)) {
+      continue
+    }
+
+    const bucket = grouped.get(dataset.category) ?? []
+    bucket.push(dataset)
+    grouped.set(dataset.category, bucket)
+  }
+
+  return [...grouped.entries()].map(([category, datasets]) => ({
+    category,
+    label: getDatasetCategoryLabel(category, locale.value),
+    datasets,
+  }))
+})
 
 const hasActiveFilters = computed(() => search.value || selectedMunicipality.value !== 'all' || selectedActivity.value !== 'all' || contactFilter.value !== 'all')
 const selectedLocation = computed(() => mapLocations.value.find((location) => location.id === selectedId.value) ?? tableLocations.value.find((location) => location.id === selectedId.value) ?? null)
@@ -51,6 +80,10 @@ const activityCount = computed(() => new Set(mapLocations.value.map((item) => it
 const isLightTheme = computed(() => theme.value === 'light')
 const currentRangeStart = computed(() => (totalResults.value ? (page.value - 1) * pageSize.value + 1 : 0))
 const currentRangeEnd = computed(() => Math.min(page.value * pageSize.value, totalResults.value))
+const mapLegend = computed(() => datasetMetadata.value ? {
+  geometryType: datasetMetadata.value.geometryType,
+  label: datasetMetadata.value.legendLabel,
+} : null)
 const chartItems = computed(() =>
   datasetSummaries.value.map((item) => ({
     key: item.key,
@@ -119,6 +152,72 @@ function applyTheme(nextTheme: ThemeMode) {
   document.documentElement.style.colorScheme = nextTheme
 }
 
+function parseContactFilter(value: string | null): ContactFilter {
+  return value === 'withContact' || value === 'withoutContact' ? value : 'all'
+}
+
+function parseViewport(searchParams: URLSearchParams) {
+  const lat = Number.parseFloat(searchParams.get('lat') ?? '')
+  const lng = Number.parseFloat(searchParams.get('lng') ?? '')
+  const zoom = Number.parseInt(searchParams.get('zoom') ?? '', 10)
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zoom)) {
+    return null
+  }
+
+  return { lat, lng, zoom }
+}
+
+function restoreStateFromUrl() {
+  const searchParams = new URLSearchParams(window.location.search)
+  const datasetKey = searchParams.get('dataset')
+
+  if (datasetKey && DATASETS.some((dataset) => dataset.key === datasetKey)) {
+    activeDatasetKey.value = datasetKey
+  }
+
+  search.value = searchParams.get('search') ?? ''
+  selectedMunicipality.value = searchParams.get('municipality') ?? 'all'
+  selectedActivity.value = searchParams.get('activity') ?? 'all'
+  contactFilter.value = parseContactFilter(searchParams.get('contact'))
+  sortKey.value = (['name', 'municipality', 'address', 'reference', 'activityType'] as SortKey[]).includes((searchParams.get('sort') ?? 'name') as SortKey)
+    ? (searchParams.get('sort') as SortKey)
+    : 'name'
+  sortDirection.value = searchParams.get('direction') === 'desc' ? 'desc' : 'asc'
+  page.value = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  pageSize.value = pageSizeOptions.includes(Number.parseInt(searchParams.get('pageSize') ?? `${pageSize.value}`, 10))
+    ? Number.parseInt(searchParams.get('pageSize') ?? `${pageSize.value}`, 10)
+    : pageSize.value
+  mapViewport.value = parseViewport(searchParams)
+}
+
+function syncStateToUrl() {
+  if (suppressUrlSync) {
+    return
+  }
+
+  const searchParams = new URLSearchParams()
+  searchParams.set('dataset', activeDatasetKey.value)
+
+  if (search.value) searchParams.set('search', search.value)
+  if (selectedMunicipality.value !== 'all') searchParams.set('municipality', selectedMunicipality.value)
+  if (selectedActivity.value !== 'all') searchParams.set('activity', selectedActivity.value)
+  if (contactFilter.value !== 'all') searchParams.set('contact', contactFilter.value)
+  if (sortKey.value !== 'name') searchParams.set('sort', sortKey.value)
+  if (sortDirection.value !== 'asc') searchParams.set('direction', sortDirection.value)
+  if (page.value > 1) searchParams.set('page', String(page.value))
+  if (pageSize.value !== 25) searchParams.set('pageSize', String(pageSize.value))
+
+  if (mapViewport.value) {
+    searchParams.set('lat', mapViewport.value.lat.toFixed(5))
+    searchParams.set('lng', mapViewport.value.lng.toFixed(5))
+    searchParams.set('zoom', String(mapViewport.value.zoom))
+  }
+
+  const nextUrl = `${window.location.pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+  window.history.replaceState({}, '', nextUrl)
+}
+
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
 }
@@ -169,6 +268,7 @@ function exportCsv() {
     direction: sortDirection.value,
     page: 1,
     pageSize: pageSize.value,
+    locale: locale.value,
     refresh: false,
   }, locale.value)
   const link = document.createElement('a')
@@ -190,11 +290,13 @@ async function loadDataset(options: { forceRefresh?: boolean } = {}) {
       direction: sortDirection.value,
       page: page.value,
       pageSize: pageSize.value,
+      locale: locale.value,
       refresh: options.forceRefresh,
     })
 
     tableLocations.value = payload.items
     mapLocations.value = payload.mapItems
+    datasetMetadata.value = payload.dataset
     municipalityOptions.value = payload.municipalities
     activityOptions.value = payload.activities
     lastUpdated.value = payload.fetchedAt
@@ -210,6 +312,7 @@ async function loadDataset(options: { forceRefresh?: boolean } = {}) {
     errorMessage.value = message
     tableLocations.value = []
     mapLocations.value = []
+    datasetMetadata.value = null
     municipalityOptions.value = []
     activityOptions.value = []
     totalResults.value = 0
@@ -272,6 +375,10 @@ function onPageSizeChange() {
   void loadDataset()
 }
 
+function handleMapViewportChange(nextViewport: MapViewport) {
+  mapViewport.value = nextViewport
+}
+
 watch(activeDatasetKey, () => {
   resetFilters()
   selectedId.value = null
@@ -313,6 +420,7 @@ watch(search, () => {
 
 watch(locale, (nextLocale) => {
   document.documentElement.lang = nextLocale
+  void loadDataset()
 })
 
 watch(theme, (nextTheme) => {
@@ -320,8 +428,18 @@ watch(theme, (nextTheme) => {
   window.localStorage.setItem('tm-theme', nextTheme)
 })
 
+watch([activeDatasetKey, search, selectedMunicipality, selectedActivity, contactFilter, sortKey, sortDirection, page, pageSize], () => {
+  syncStateToUrl()
+})
+
+watch(mapViewport, () => {
+  syncStateToUrl()
+}, { deep: true })
+
 // Initial load fetches the active dataset and the cross-dataset summary chart.
 onMounted(() => {
+  suppressUrlSync = true
+  restoreStateFromUrl()
   const storedTheme = window.localStorage.getItem('tm-theme')
   const preferredTheme = storedTheme === 'light' || storedTheme === 'dark'
     ? storedTheme
@@ -332,6 +450,8 @@ onMounted(() => {
   theme.value = preferredTheme
   applyTheme(preferredTheme)
   document.documentElement.lang = locale.value
+  suppressUrlSync = false
+  syncStateToUrl()
   void loadDataset().finally(() => {
     queueChartSummaries()
   })
@@ -400,13 +520,20 @@ onMounted(() => {
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]">
           <label class="min-w-0 space-y-2">
             <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('controls.dataset') }}</span>
+            <input
+              v-model="datasetSearch"
+              :placeholder="t('controls.datasetSearchPlaceholder')"
+              :class="controlClass"
+            />
             <select
               v-model="activeDatasetKey"
               :class="controlClass"
             >
-              <option v-for="dataset in DATASETS" :key="dataset.key" :value="dataset.key">
-                {{ getDatasetPresentation(dataset, locale).title }}
-              </option>
+              <optgroup v-for="group in filteredDatasetGroups" :key="group.category" :label="group.label">
+                <option v-for="dataset in group.datasets" :key="dataset.key" :value="dataset.key">
+                  {{ getDatasetPresentation(dataset, locale).title }}
+                </option>
+              </optgroup>
             </select>
           </label>
 
@@ -505,8 +632,8 @@ onMounted(() => {
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" :class="panelHeaderClass">
             <div>
               <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('map.sectionEyebrow') }}</p>
-              <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ datasetPresentation.title }}</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6" :class="mutedClass">{{ datasetPresentation.description }}</p>
+              <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ datasetMetadata?.title || datasetPresentation.title }}</h2>
+              <p class="mt-2 max-w-3xl text-sm leading-6" :class="mutedClass">{{ datasetMetadata?.description || datasetPresentation.description }}</p>
             </div>
             <div class="text-sm" :class="mutedClass">
               <div>{{ t('map.lastSync') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ formatDate(lastUpdated) }}</span></div>
@@ -521,11 +648,63 @@ onMounted(() => {
               </div>
             </div>
 
-            <LeafletMap :locations="mapLocations" :selected-id="selectedId" @select="selectedId = $event" />
+            <LeafletMap :locations="mapLocations" :selected-id="selectedId" :viewport="mapViewport" @select="selectedId = $event" @viewport-change="handleMapViewportChange" />
           </div>
         </article>
 
         <aside class="space-y-6">
+          <article class="border-t p-5" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('metadata.title') }}</p>
+                <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ datasetMetadata?.title || datasetPresentation.title }}</h2>
+              </div>
+              <span class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ getDatasetCategoryLabel(currentDataset.category, locale) }}</span>
+            </div>
+
+            <p class="mt-4 text-sm leading-6" :class="mutedClass">{{ datasetMetadata?.description || datasetPresentation.description }}</p>
+
+            <dl class="mt-4 grid gap-3 text-sm">
+              <div :class="cardClass">
+                <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.source') }}</dt>
+                <dd class="mt-1" :class="headingClass">{{ datasetMetadata?.source || 'datos.tenerife.es' }}</dd>
+              </div>
+              <div :class="cardClass">
+                <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.updatedAt') }}</dt>
+                <dd class="mt-1" :class="headingClass">{{ formatDate(datasetMetadata?.updatedAt || lastUpdated) }}</dd>
+              </div>
+              <div :class="cardClass">
+                <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.license') }}</dt>
+                <dd class="mt-1" :class="headingClass">{{ formatText(datasetMetadata?.license || '') }}</dd>
+              </div>
+              <div :class="cardClass">
+                <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.originalLink') }}</dt>
+                <dd class="mt-1 break-all text-sm">
+                  <a
+                    :href="datasetMetadata?.originalUrl || currentDataset.url"
+                    target="_blank"
+                    rel="noreferrer"
+                    class="transition hover:underline"
+                    :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
+                  >
+                    {{ datasetMetadata?.originalUrl || currentDataset.url }}
+                  </a>
+                </dd>
+              </div>
+            </dl>
+
+            <div v-if="mapLegend" class="mt-4 rounded-xl border px-4 py-3" :class="isLightTheme ? 'border-slate-300 bg-white/80' : 'border-white/10 bg-slate-950/30'">
+              <p class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.legend') }}</p>
+              <div class="mt-3 flex items-center gap-3 text-sm">
+                <span class="tm-marker" />
+                <div>
+                  <div :class="headingClass">{{ mapLegend.geometryType }}</div>
+                  <div :class="mutedClass">{{ mapLegend.label }}</div>
+                </div>
+              </div>
+            </div>
+          </article>
+
           <article class="border-t p-5" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
             <div class="flex items-center justify-between gap-4">
               <div>

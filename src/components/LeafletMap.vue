@@ -9,10 +9,12 @@ import type { LocationRecord } from '../types'
 const props = defineProps<{
   locations: LocationRecord[]
   selectedId: string | null
+  viewport: { lat: number; lng: number; zoom: number } | null
 }>()
 
 const emit = defineEmits<{
   select: [id: string]
+  viewportChange: [viewport: { lat: number; lng: number; zoom: number }]
 }>()
 
 let map: L.Map | null = null
@@ -27,6 +29,37 @@ const canaryBounds = L.latLngBounds([
 function buildPopup(location: LocationRecord) {
   const lines = [`<strong>${location.name}</strong>`, location.municipality, location.address].filter(Boolean)
   return lines.join('<br />')
+}
+
+function emitViewport() {
+  if (!map) {
+    return
+  }
+
+  const center = map.getCenter()
+  emit('viewportChange', {
+    lat: center.lat,
+    lng: center.lng,
+    zoom: map.getZoom(),
+  })
+}
+
+function applyViewport(viewport: { lat: number; lng: number; zoom: number } | null) {
+  if (!map || !viewport) {
+    return false
+  }
+
+  const center = map.getCenter()
+  const sameView = Math.abs(center.lat - viewport.lat) < 0.0001
+    && Math.abs(center.lng - viewport.lng) < 0.0001
+    && map.getZoom() === viewport.zoom
+
+  if (sameView) {
+    return true
+  }
+
+  map.setView([viewport.lat, viewport.lng], viewport.zoom)
+  return true
 }
 
 function createMarkerIcon(isSelected: boolean) {
@@ -48,7 +81,9 @@ function renderMarkers(shouldFitBounds = true) {
   markerLayer.clearLayers()
 
   if (!props.locations.length) {
-    map.setView([28.4636, -16.2518], 9)
+    if (!applyViewport(props.viewport)) {
+      map.setView([28.4636, -16.2518], 9)
+    }
     return
   }
 
@@ -71,6 +106,7 @@ function renderMarkers(shouldFitBounds = true) {
       padding: [36, 36],
       maxZoom: 14,
     })
+    emitViewport()
   }
 }
 
@@ -81,6 +117,8 @@ onMounted(() => {
     maxBoundsViscosity: 1,
     minZoom: 8,
   }).setView([28.4636, -16.2518], 9)
+
+  applyViewport(props.viewport)
   L.control.zoom({ position: 'topright' }).addTo(map)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -106,6 +144,7 @@ onMounted(() => {
   })
 
   map.addLayer(markerLayer)
+  map.on('moveend zoomend', emitViewport)
   renderMarkers()
 
   const element = document.getElementById(mapId)
@@ -123,7 +162,7 @@ onMounted(() => {
 
 watch(
   () => props.locations,
-  () => renderMarkers(true),
+  () => renderMarkers(!props.viewport),
   { deep: true },
 )
 
@@ -132,8 +171,17 @@ watch(
   () => renderMarkers(false),
 )
 
+watch(
+  () => props.viewport,
+  (nextViewport) => {
+    applyViewport(nextViewport)
+  },
+  { deep: true },
+)
+
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  map?.off('moveend zoomend', emitViewport)
   map?.remove()
 })
 </script>

@@ -4,7 +4,7 @@
 
 Tenerife Maps is a backend-driven geospatial web application built with Vue 3 and TypeScript on the frontend and Vercel Functions on the server side.
 
-The browser is responsible for presentation and interaction. The server is responsible for dataset retrieval, normalization, filtering, sorting, pagination, summary generation, and CSV export.
+The browser is responsible for presentation and interaction. The server is responsible for CKAN resolution, dataset retrieval, normalization, filtering, sorting, pagination, summary generation, and CSV export.
 
 ## Main Modules
 
@@ -18,6 +18,7 @@ Responsibilities:
 - build query parameters from the current controls
 - request paginated results from the backend
 - request dataset summary data
+- restore and persist shareable state through the URL
 - keep selection consistent between map, detail panel, and inventory
 - pass plain props down to visual components
 
@@ -30,6 +31,7 @@ Responsibilities:
 - create the map instance
 - render clustered markers
 - keep the view constrained to the Canary Islands area
+- restore and emit viewport state
 - reflect current selection visually
 - emit selected record ids back to the parent
 
@@ -44,6 +46,17 @@ Responsibilities:
 - build the export URL for `/api/export`
 - normalize HTTP errors for the UI layer
 
+### `src/server/ckan.ts`
+
+CKAN integration layer.
+
+Responsibilities:
+
+- resolve a dataset download URL from CKAN resource or package metadata
+- resolve dataset metadata such as title, description, source, license, and update date
+- validate CKAN logical success responses even when HTTP status is 200
+- preserve `dataset.url` as a mandatory fallback path
+
 ### `src/server/datasetProxy.ts`
 
 Server-side upstream fetch layer.
@@ -51,7 +64,7 @@ Server-side upstream fetch layer.
 Responsibilities:
 
 - validate dataset keys
-- resolve remote source URLs from the static catalog
+- resolve remote source URLs through CKAN with fallback to the static catalog
 - fetch raw GeoJSON from `datos.tenerife.es`
 - return a typed success or failure result
 
@@ -63,6 +76,7 @@ Responsibilities:
 
 - normalize GeoJSON into `LocationRecord`
 - cache normalized datasets in memory when possible
+- enrich responses with dataset metadata
 - apply text and categorical filters
 - apply sorting and pagination
 - prepare map items independently from paginated table items
@@ -105,6 +119,7 @@ Responsibilities:
 
 - define available datasets
 - provide bilingual labels and descriptions
+- group datasets by category
 - centralize remote source URLs
 
 ## Design Decisions
@@ -116,6 +131,10 @@ All raw GeoJSON features are converted into `LocationRecord`. This isolates the 
 ### Backend-driven querying
 
 Filtering, sorting, pagination, summary generation, and export all happen server-side. This keeps the frontend light and makes the application easier to scale as datasets grow.
+
+### CKAN as metadata layer with hard fallback
+
+CKAN is used to resolve richer metadata and, when possible, the preferred GeoJSON resource URL. Static download URLs remain in the dataset catalog so the application continues to work if CKAN metadata calls fail.
 
 ### Separate map and table payloads
 

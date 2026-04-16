@@ -1,4 +1,5 @@
 import { DATASETS } from '../data/datasets.js'
+import { resolveDatasetUrl } from './ckan.js'
 
 type DatasetProxySuccess = {
   status: 200
@@ -37,7 +38,9 @@ export async function fetchDatasetPayload(key: string, options: { forceFresh?: b
   }
 
   try {
-    const response = await fetch(dataset.url, {
+    const resolvedUrl = await resolveDatasetUrl(dataset, options)
+
+    const response = await fetch(resolvedUrl, {
       cache: options.forceFresh ? 'no-store' : 'default',
       headers: {
         accept: 'application/geo+json, application/json',
