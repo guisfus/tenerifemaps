@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import BarChart from './components/BarChart.vue'
 import LeafletMap from './components/LeafletMap.vue'
 import { DATASETS, getDatasetCategoryLabel, getDatasetPresentation } from './data/datasets'
+import { sanitizeExternalUrl } from './shared/url'
 import { buildDatasetExportUrl, fetchDatasetLocations, fetchDatasetSummaries } from './services/geojson'
 import type { DatasetMetadata, DatasetSummary, LocationRecord, SortKey } from './types'
 
@@ -32,12 +33,14 @@ const activityOptions = ref<string[]>([])
 const sortKey = ref<SortKey>('name')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 const theme = ref<ThemeMode>('dark')
+const headerControlsOpen = ref(true)
 const page = ref(1)
 const pageSize = ref(25)
 const totalResults = ref(0)
 const pageCount = ref(1)
 const datasetMetadata = ref<DatasetMetadata | null>(null)
 const mapViewport = ref<MapViewport | null>(null)
+const mapResetVersion = ref(0)
 let searchDebounce: number | null = null
 let suppressQueryReload = false
 let suppressUrlSync = false
@@ -93,42 +96,40 @@ const headerClass = computed(() =>
 const headingClass = computed(() => (isLightTheme.value ? 'text-slate-950' : 'text-white'))
 const mutedClass = computed(() => (isLightTheme.value ? 'text-slate-600' : 'text-slate-400'))
 const subtleClass = computed(() => (isLightTheme.value ? 'text-slate-500' : 'text-slate-500'))
-const accentLabelClass = computed(() => (isLightTheme.value ? 'text-emerald-700/90' : 'text-emerald-300/90'))
 const controlClass = computed(() =>
   isLightTheme.value
-    ? 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-500/60'
-    : 'w-full rounded-xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-sky-400/60',
+    ? 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-900 outline-none transition focus:border-sky-500/60'
+    : 'w-full rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2.5 text-[13px] text-white outline-none transition focus:border-sky-400/60',
 )
 const compactControlClass = computed(() =>
   isLightTheme.value
-    ? 'min-w-[78px] appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-7 text-xs font-medium text-slate-900 outline-none transition focus:border-sky-500/60'
-    : 'min-w-[78px] appearance-none rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 pr-7 text-xs font-medium text-white outline-none transition focus:border-sky-400/60',
+    ? 'min-w-[70px] appearance-none rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 pr-6 text-[11px] font-medium text-slate-900 outline-none transition focus:border-sky-500/60'
+    : 'min-w-[70px] appearance-none rounded-lg border border-white/10 bg-slate-900/70 px-2.5 py-1.5 pr-6 text-[11px] font-medium text-white outline-none transition focus:border-sky-400/60',
 )
 const iconButtonClass = computed(() =>
   isLightTheme.value
-    ? 'group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-sky-400/40 hover:text-sky-700'
-    : 'group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-400/25 bg-linear-to-r from-sky-400/14 via-cyan-400/10 to-emerald-400/14 text-sky-100 transition hover:border-sky-300/40 hover:from-sky-400/22 hover:to-emerald-400/22',
+    ? 'group inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:border-sky-400/40 hover:text-sky-700'
+    : 'group inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-400/25 bg-linear-to-r from-sky-400/14 via-cyan-400/10 to-emerald-400/14 text-sky-100 transition hover:border-sky-300/40 hover:from-sky-400/22 hover:to-emerald-400/22',
 )
 const primaryButtonClass = computed(() =>
   isLightTheme.value
-    ? 'rounded-xl border border-sky-300 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800 transition hover:bg-sky-100'
-    : 'rounded-xl border border-sky-400/25 bg-sky-400/10 px-4 py-3 text-sm font-medium text-sky-100 transition hover:bg-sky-400/20',
+    ? 'rounded-lg border border-sky-300 bg-sky-50 px-3 py-2.5 text-[13px] font-medium text-sky-800 transition hover:bg-sky-100'
+    : 'rounded-lg border border-sky-400/25 bg-sky-400/10 px-3 py-2.5 text-[13px] font-medium text-sky-100 transition hover:bg-sky-400/20',
 )
 const secondaryButtonClass = computed(() =>
   isLightTheme.value
-    ? 'rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-100'
-    : 'rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-white/10',
+    ? 'rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-[13px] font-medium text-slate-800 transition hover:bg-slate-100'
+    : 'rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-[13px] font-medium text-slate-100 transition hover:bg-white/10',
 )
 const successButtonClass = computed(() =>
   isLightTheme.value
-    ? 'rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100'
-    : 'rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20',
+    ? 'rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-[13px] font-medium text-emerald-800 transition hover:bg-emerald-100'
+    : 'rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2.5 text-[13px] font-medium text-emerald-100 transition hover:bg-emerald-400/20',
 )
 const metricRowClass = computed(() =>
   isLightTheme.value ? 'flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-300 pt-2 text-[11px] text-slate-600' : 'flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/8 pt-2 text-[11px] text-slate-400',
 )
 const panelClass = computed(() => (isLightTheme.value ? 'border-y border-slate-300/80 bg-transparent' : 'border-y border-white/8 bg-transparent'))
-const panelHeaderClass = computed(() => (isLightTheme.value ? 'border-b border-slate-300/80 px-5 py-4' : 'border-b border-white/8 px-5 py-4'))
 const cardClass = computed(() =>
   isLightTheme.value ? 'border border-slate-300 bg-white/90 p-3' : 'border border-white/8 bg-slate-950/35 p-3',
 )
@@ -212,6 +213,10 @@ function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
 }
 
+function toggleMobileFilters() {
+  headerControlsOpen.value = !headerControlsOpen.value
+}
+
 function formatDate(date: string) {
   if (!date) {
     return '--'
@@ -222,6 +227,10 @@ function formatDate(date: string) {
 
 function formatText(value: string) {
   return value || '—'
+}
+
+function safeExternalLink(url: string) {
+  return sanitizeExternalUrl(url)
 }
 
 // Clicking the same header toggles direction; clicking a different header
@@ -369,6 +378,15 @@ function handleMapViewportChange(nextViewport: MapViewport) {
   mapViewport.value = nextViewport
 }
 
+function resetMapViewport() {
+  mapViewport.value = null
+  mapResetVersion.value += 1
+}
+
+function syncHeaderControlsWithViewport() {
+  headerControlsOpen.value = window.innerWidth >= 768
+}
+
 watch(activeDatasetKey, () => {
   resetFilters()
   selectedId.value = null
@@ -430,6 +448,7 @@ watch(mapViewport, () => {
 onMounted(() => {
   suppressUrlSync = true
   restoreStateFromUrl()
+  syncHeaderControlsWithViewport()
   const storedTheme = window.localStorage.getItem('tm-theme')
   const preferredTheme = storedTheme === 'light' || storedTheme === 'dark'
     ? storedTheme
@@ -451,14 +470,19 @@ onMounted(() => {
 <template>
   <div :class="pageClass">
     <header :class="headerClass">
-      <div class="flex w-full flex-col gap-4 px-4 py-5 sm:px-6 xl:px-8 2xl:px-10">
+      <div class="flex w-full flex-col gap-2 px-4 py-2.5 sm:px-6 xl:px-8 2xl:px-10">
         <div class="flex items-start justify-between gap-4">
-          <div class="space-y-3">
-            <div class="flex items-center gap-3">
-              <div class="h-3.5 w-3.5 rounded-full bg-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.75)]" />
-              <p class="text-xs font-semibold uppercase tracking-[0.32em]" :class="accentLabelClass">Open data explorer</p>
-            </div>
-            <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl xl:text-5xl" :class="headingClass">Tenerife Maps</h1>
+          <div class="flex items-baseline gap-3">
+            <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl xl:text-4xl" :class="headingClass">Tenerife Maps</h1>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1.5 self-baseline py-0.5 text-[11px] font-semibold uppercase tracking-[0.24em]"
+              :class="subtleClass"
+              @click="toggleMobileFilters"
+            >
+              <span>{{ t('controls.filtersTitle') }}</span>
+              <span class="transition" :class="headerControlsOpen ? 'rotate-180' : ''">▾</span>
+            </button>
           </div>
 
           <div class="flex shrink-0 items-center gap-2">
@@ -503,11 +527,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <p class="max-w-2xl text-sm leading-6 sm:text-base" :class="mutedClass">
-          Visualiza datasets georreferenciados de Tenerife con un mapa interactivo y filtros potentes.
-        </p>
-
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]">
+        <div :class="[headerControlsOpen ? 'grid' : 'hidden', 'gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]']">
           <label class="min-w-0 space-y-2">
             <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('controls.dataset') }}</span>
             <select
@@ -565,7 +585,7 @@ onMounted(() => {
             </select>
           </label>
 
-          <div class="min-w-0 flex flex-col gap-3 sm:flex-row sm:items-end xl:justify-end">
+          <div class="min-w-0 flex flex-col gap-2 sm:flex-row sm:items-end xl:justify-end">
             <button
               type="button"
               :class="primaryButtonClass"
@@ -611,18 +631,36 @@ onMounted(() => {
       </div>
     </header>
 
-    <main class="flex w-full flex-col gap-6 px-4 py-4 sm:px-6 xl:px-8 2xl:px-10 lg:py-5">
+    <main class="flex w-full flex-col gap-6 px-4 pb-4 pt-0 sm:px-6 xl:px-8 2xl:px-10 lg:pb-5 lg:pt-0">
+      <details class="group">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-1 py-2">
+          <div class="flex items-center gap-3">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.24em]" :class="subtleClass">{{ t('insights.title') }}</p>
+            <span class="text-xs" :class="mutedClass">{{ t('insights.subtitle') }}</span>
+          </div>
+          <span class="text-[11px] uppercase tracking-[0.22em] transition group-open:rotate-180" :class="subtleClass">▾</span>
+        </summary>
+
+        <div class="pb-3 pt-2">
+          <div v-if="chartLoading && !chartItems.length" class="rounded-2xl px-4 py-8 text-center text-sm" :class="isLightTheme ? 'border border-slate-300 bg-white text-slate-500' : 'border border-white/10 bg-slate-950/35 text-slate-400'">
+            {{ t('states.loading') }}
+          </div>
+          <BarChart v-else :items="chartItems" :empty-label="t('states.noChartData')" />
+        </div>
+      </details>
+
       <section class="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1.7fr)_420px]">
         <article class="flex min-h-[760px] flex-col" :class="panelClass">
-          <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between" :class="panelHeaderClass">
+          <div class="flex flex-col gap-4 border-b px-5 py-4 sm:flex-row sm:items-end sm:justify-between" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
             <div>
               <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('map.sectionEyebrow') }}</p>
-              <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ datasetMetadata?.title || datasetPresentation.title }}</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6" :class="mutedClass">{{ datasetMetadata?.description || datasetPresentation.description }}</p>
             </div>
-            <div class="text-sm" :class="mutedClass">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm" :class="mutedClass">
               <div>{{ t('map.lastSync') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ formatDate(lastUpdated) }}</span></div>
               <div>{{ t('map.filteredResults') }}: <span :class="isLightTheme ? 'text-slate-800' : 'text-slate-200'">{{ totalResults }}</span></div>
+              <button type="button" class="text-xs font-medium transition hover:underline" :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'" @click="resetMapViewport">
+                {{ t('map.resetView') }}
+              </button>
             </div>
           </div>
 
@@ -633,7 +671,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <LeafletMap :locations="mapLocations" :selected-id="selectedId" :viewport="mapViewport" @select="selectedId = $event" @viewport-change="handleMapViewportChange" />
+            <LeafletMap :locations="mapLocations" :selected-id="selectedId" :viewport="mapViewport" :layout-version="headerControlsOpen ? 1 : 0" :reset-version="mapResetVersion" @select="selectedId = $event" @viewport-change="handleMapViewportChange" />
           </div>
         </article>
 
@@ -666,14 +704,16 @@ onMounted(() => {
                 <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('metadata.originalLink') }}</dt>
                 <dd class="mt-1 break-all text-sm">
                   <a
-                    :href="datasetMetadata?.originalUrl || currentDataset.url"
+                    v-if="safeExternalLink(datasetMetadata?.originalUrl || currentDataset.url)"
+                    :href="safeExternalLink(datasetMetadata?.originalUrl || currentDataset.url)"
                     target="_blank"
                     rel="noreferrer"
                     class="transition hover:underline"
                     :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
                   >
-                    {{ datasetMetadata?.originalUrl || currentDataset.url }}
+                    {{ safeExternalLink(datasetMetadata?.originalUrl || currentDataset.url) }}
                   </a>
+                  <span v-else>{{ formatText('') }}</span>
                 </dd>
               </div>
             </dl>
@@ -690,23 +730,7 @@ onMounted(() => {
             </div>
           </article>
 
-          <article class="border-t p-5" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('insights.title') }}</p>
-                <h2 class="mt-2 text-2xl font-semibold" :class="headingClass">{{ t('insights.subtitle') }}</h2>
-              </div>
-              <span v-if="chartLoading" class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">
-                {{ t('states.loading') }}
-              </span>
-            </div>
-            <div v-if="chartLoading && !chartItems.length" class="mt-5 rounded-2xl px-4 py-8 text-center text-sm" :class="isLightTheme ? 'border border-slate-300 bg-white text-slate-500' : 'border border-white/10 bg-slate-950/35 text-slate-400'">
-              {{ t('states.loading') }}
-            </div>
-            <BarChart v-else :items="chartItems" :empty-label="t('states.noChartData')" />
-          </article>
-
-          <article class="border-t p-5" :class="isLightTheme ? 'border-slate-300/80' : 'border-white/8'">
+          <article class="overflow-hidden rounded-xl border p-5" :class="isLightTheme ? 'border-slate-300/80 bg-white/35' : 'border-white/8 bg-white/[0.02]'">
             <div class="flex items-center justify-between gap-3">
               <p class="text-xs uppercase tracking-[0.22em]" :class="subtleClass">{{ t('details.title') }}</p>
               <span v-if="hasActiveFilters" class="text-xs text-sky-300">{{ t('filters.active') }}</span>
@@ -746,17 +770,17 @@ onMounted(() => {
                     <span v-else>{{ formatText(selectedLocation.email) }}</span>
                   </dd>
                 </div>
-                <div v-if="selectedLocation.website" :class="cardClass">
+                <div v-if="safeExternalLink(selectedLocation.website)" :class="cardClass">
                   <dt class="text-xs uppercase tracking-[0.18em]" :class="subtleClass">{{ t('details.website') }}</dt>
                   <dd class="mt-1 break-all text-sm">
                     <a
-                      :href="selectedLocation.website"
+                      :href="safeExternalLink(selectedLocation.website)"
                       target="_blank"
                       rel="noreferrer"
                       class="transition hover:underline"
                       :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
                     >
-                      {{ selectedLocation.website }}
+                      {{ safeExternalLink(selectedLocation.website) }}
                     </a>
                   </dd>
                 </div>
@@ -817,17 +841,17 @@ onMounted(() => {
                 <dd class="mt-1 text-white">{{ formatText(location.phone) }}</dd>
                 <dd class="mt-1 text-slate-400">{{ formatText(location.email) }}</dd>
               </div>
-              <div v-if="location.website" class="rounded-sm bg-black/10 px-3 py-2">
+              <div v-if="safeExternalLink(location.website)" class="rounded-sm bg-black/10 px-3 py-2">
                 <dt class="text-[11px] uppercase tracking-[0.18em] text-slate-500">{{ t('details.website') }}</dt>
                 <dd class="mt-1 break-all">
                   <a
-                    :href="location.website"
+                    :href="safeExternalLink(location.website)"
                     target="_blank"
                     rel="noreferrer"
                     class="transition hover:underline"
                     :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
                   >
-                    {{ location.website }}
+                    {{ safeExternalLink(location.website) }}
                   </a>
                 </dd>
               </div>
@@ -873,14 +897,14 @@ onMounted(() => {
                 </td>
                 <td class="px-5 py-4 align-top">
                   <a
-                    v-if="location.website"
-                    :href="location.website"
+                    v-if="safeExternalLink(location.website)"
+                    :href="safeExternalLink(location.website)"
                     target="_blank"
                     rel="noreferrer"
                     class="break-all transition hover:underline"
                     :class="isLightTheme ? 'text-sky-700' : 'text-sky-300'"
                   >
-                    {{ location.website }}
+                    {{ safeExternalLink(location.website) }}
                   </a>
                   <span v-else :class="mutedClass">{{ formatText(location.website) }}</span>
                 </td>

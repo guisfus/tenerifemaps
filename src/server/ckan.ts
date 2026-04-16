@@ -1,4 +1,5 @@
 import type { DatasetDefinition, DatasetMetadata } from '../types'
+import { sanitizeExternalUrl } from '../shared/url.js'
 
 type CkanActionSuccess<T> = {
   success: true
@@ -42,6 +43,7 @@ type ResourceResolution = {
 
 const CKAN_BASE_URL = 'https://datos.tenerife.es/ckan/api/3/action'
 const REQUEST_TIMEOUT_MS = 8000
+const ALLOWED_CKAN_HOSTS = ['datos.tenerife.es']
 
 const resourceCache = new Map<string, CkanResource>()
 const packageCache = new Map<string, CkanPackage>()
@@ -78,7 +80,7 @@ async function fetchCkanAction<T>(path: string): Promise<T> {
 
 function looksLikeGeoJson(resource: CkanResource) {
   const format = resource.format?.toLowerCase() ?? ''
-  const url = resource.url?.toLowerCase() ?? ''
+  const url = sanitizeExternalUrl(resource.url ?? '', { allowedHosts: ALLOWED_CKAN_HOSTS }).toLowerCase()
 
   return format === 'geojson' || url.includes('.geojson')
 }
@@ -91,6 +93,10 @@ function pickBestResource(resources: CkanResource[] = []) {
 
 function buildDatasetPageUrl(packageId: string) {
   return `https://datos.tenerife.es/ckan/dataset/${packageId}`
+}
+
+function getSafeCkanUrl(rawUrl: string) {
+  return sanitizeExternalUrl(rawUrl, { allowedHosts: ALLOWED_CKAN_HOSTS })
 }
 
 function fallbackMetadata(dataset: DatasetDefinition): DatasetMetadata {
@@ -150,7 +156,7 @@ async function resolveDatasetResource(dataset: DatasetDefinition, options: { for
   try {
     if (dataset.resourceId) {
       resource = await fetchCkanResource(dataset.resourceId)
-      const url = resource.url
+      const url = getSafeCkanUrl(resource.url ?? '')
 
       if (url && looksLikeGeoJson(resource)) {
         const resolution = { url, resource, packageData, usedFallback: false }
@@ -162,9 +168,10 @@ async function resolveDatasetResource(dataset: DatasetDefinition, options: { for
     if (dataset.packageId) {
       packageData = await fetchCkanPackage(dataset.packageId)
       resource = pickBestResource(packageData.resources)
+      const resourceUrl = getSafeCkanUrl(resource?.url ?? '')
 
-      if (resource?.url) {
-        const resolution = { url: resource.url, resource, packageData, usedFallback: false }
+      if (resourceUrl) {
+        const resolution = { url: resourceUrl, resource, packageData, usedFallback: false }
         urlResolutionCache.set(dataset.key, resolution)
         return resolution
       }
@@ -175,7 +182,7 @@ async function resolveDatasetResource(dataset: DatasetDefinition, options: { for
   }
 
   const resolution = {
-    url: dataset.url,
+    url: getSafeCkanUrl(dataset.url) || dataset.url,
     resource,
     packageData,
     usedFallback: true,
@@ -214,7 +221,7 @@ export async function resolveDatasetMetadata(dataset: DatasetDefinition, locale:
       description: packageData?.notes || dataset.description[locale],
       source: packageData?.organization?.title || 'datos.tenerife.es',
       sourceUrl: packageData?.id ? buildDatasetPageUrl(packageData.id) : fallback.sourceUrl,
-      originalUrl: resolution.url || dataset.url,
+      originalUrl: getSafeCkanUrl(resolution.url) || getSafeCkanUrl(dataset.url) || dataset.url,
       updatedAt: resolution.resource?.last_modified || resolution.resource?.metadata_modified || packageData?.metadata_modified || '',
       license: packageData?.license_title || packageData?.license_id || '',
       geometryType: 'Point',

@@ -1,5 +1,6 @@
 import { DATASETS } from '../data/datasets.js'
 import { getDatasetPresentation } from '../data/datasets.js'
+import { sanitizeExternalUrl } from '../shared/url.js'
 import { fetchDatasetPayload } from './datasetProxy.js'
 import { resolveDatasetMetadata } from './ckan.js'
 import type { DatasetDefinition, DatasetMetadata, DatasetSummary, LocationRecord, PaginationMeta, SortKey } from '../types'
@@ -25,7 +26,7 @@ type DatasetCacheEntry = {
 }
 
 type Failure = {
-  status: 400 | 404 | 502
+  status: 400 | 404 | 429 | 502
   error: string
 }
 
@@ -82,6 +83,8 @@ const CACHE_CONTROL = 'public, s-maxage=86400, stale-while-revalidate=604800'
 const MAX_PAGE_SIZE = 100
 const DEFAULT_PAGE_SIZE = 25
 const MAX_MAP_ITEMS = 2000
+const REFRESH_COOLDOWN_MS = 60_000
+const refreshThrottle = new Map<string, number>()
 
 function cleanValue(value: unknown) {
   if (value === null || value === undefined || value === '' || value === 'null' || value === 0 || value === '0') {
@@ -98,11 +101,7 @@ function buildAddress(properties: Record<string, unknown>) {
 }
 
 function normalizeWebsite(rawWebsite: string) {
-  if (!rawWebsite) {
-    return ''
-  }
-
-  return /^https?:\/\//i.test(rawWebsite) ? rawWebsite : `https://${rawWebsite}`
+  return sanitizeExternalUrl(rawWebsite)
 }
 
 function createRecord(feature: Feature, index: number): LocationRecord | null {
@@ -283,6 +282,19 @@ function parseLocale(searchParams: URLSearchParams): LocaleCode {
 async function getNormalizedDataset(dataset: DatasetDefinition, options: { forceFresh?: boolean } = {}): Promise<DatasetCacheEntry | Failure> {
   const cached = datasetCache.get(dataset.key)
 
+  if (options.forceFresh) {
+    const lastRefreshAt = refreshThrottle.get(dataset.key) ?? 0
+
+    if (Date.now() - lastRefreshAt < REFRESH_COOLDOWN_MS) {
+      return {
+        status: 429,
+        error: 'Dataset refresh is temporarily rate limited. Please wait a minute and try again.',
+      }
+    }
+
+    refreshThrottle.set(dataset.key, Date.now())
+  }
+
   if (cached && !options.forceFresh) {
     return cached
   }
@@ -339,8 +351,8 @@ function buildInlineMetadata(dataset: DatasetDefinition, locale: LocaleCode) {
     title: presentation.title,
     description: presentation.description,
     source: 'datos.tenerife.es',
-    sourceUrl: dataset.url,
-    originalUrl: dataset.url,
+    sourceUrl: sanitizeExternalUrl(dataset.url) || dataset.url,
+    originalUrl: sanitizeExternalUrl(dataset.url) || dataset.url,
     updatedAt: '',
     license: '',
     geometryType: 'Point',

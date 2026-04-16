@@ -8,6 +8,10 @@ export default async function handler(request: any, response: any) {
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
 
   if (result.status !== 200) {
+    if (result.status === 429) {
+      response.setHeader('Retry-After', '60')
+    }
+
     response.statusCode = result.status
     response.end(JSON.stringify({ error: result.error }))
     return

@@ -10,6 +10,8 @@ const props = defineProps<{
   locations: LocationRecord[]
   selectedId: string | null
   viewport: { lat: number; lng: number; zoom: number } | null
+  layoutVersion: number
+  resetVersion: number
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +23,7 @@ let map: L.Map | null = null
 let markerLayer: L.MarkerClusterGroup | null = null
 const mapId = `map-${Math.random().toString(36).slice(2, 8)}`
 let resizeObserver: ResizeObserver | null = null
+let mapHeight = 560
 const canaryBounds = L.latLngBounds([
   [27.4, -18.6],
   [29.9, -12.4],
@@ -42,6 +45,23 @@ function emitViewport() {
     lng: center.lng,
     zoom: map.getZoom(),
   })
+}
+
+function recalculateMapHeight() {
+  const element = document.getElementById(mapId)
+
+  if (!element) {
+    return
+  }
+
+  const topOffset = Math.max(element.getBoundingClientRect().top, 0)
+  const nextHeight = Math.max(420, window.innerHeight - topOffset - 16)
+
+  if (nextHeight !== mapHeight) {
+    mapHeight = nextHeight
+    element.style.height = `${nextHeight}px`
+    map?.invalidateSize(false)
+  }
 }
 
 function applyViewport(viewport: { lat: number; lng: number; zoom: number } | null) {
@@ -146,6 +166,7 @@ onMounted(() => {
   map.addLayer(markerLayer)
   map.on('moveend zoomend', emitViewport)
   renderMarkers()
+  recalculateMapHeight()
 
   const element = document.getElementById(mapId)
 
@@ -154,10 +175,14 @@ onMounted(() => {
     // mount, so we invalidate the internal size on real DOM resize.
     resizeObserver = new ResizeObserver(() => {
       map?.invalidateSize(false)
+      recalculateMapHeight()
     })
 
     resizeObserver.observe(element)
   }
+
+  window.addEventListener('resize', recalculateMapHeight)
+  window.addEventListener('scroll', recalculateMapHeight, { passive: true })
 })
 
 watch(
@@ -179,13 +204,31 @@ watch(
   { deep: true },
 )
 
+watch(
+  () => props.layoutVersion,
+  () => {
+    window.setTimeout(() => {
+      recalculateMapHeight()
+    }, 0)
+  },
+)
+
+watch(
+  () => props.resetVersion,
+  () => {
+    renderMarkers(true)
+  },
+)
+
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   map?.off('moveend zoomend', emitViewport)
+  window.removeEventListener('resize', recalculateMapHeight)
+  window.removeEventListener('scroll', recalculateMapHeight)
   map?.remove()
 })
 </script>
 
 <template>
-  <div :id="mapId" class="h-full min-h-[560px] w-full" />
+  <div :id="mapId" class="h-full min-h-[420px] w-full" />
 </template>

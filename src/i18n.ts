@@ -17,6 +17,7 @@ export const i18n = createI18n({
       controls: {
         dataset: 'Dataset activo',
         datasetSearchPlaceholder: 'Buscar dataset o categoria',
+        filtersTitle: 'Filtros',
         language: 'Idioma',
         search: 'Busqueda',
         searchPlaceholder: 'Buscar por nombre, municipio, direccion o actividad',
@@ -46,6 +47,7 @@ export const i18n = createI18n({
         sectionEyebrow: 'Vista geoespacial',
         lastSync: 'Ultima sincronizacion',
         filteredResults: 'Resultados filtrados',
+        resetView: 'Resetear mapa',
       },
       insights: {
         title: 'Resumen de datasets',
@@ -103,6 +105,7 @@ export const i18n = createI18n({
       controls: {
         dataset: 'Active dataset',
         datasetSearchPlaceholder: 'Search datasets or categories',
+        filtersTitle: 'Filters',
         language: 'Language',
         search: 'Search',
         searchPlaceholder: 'Search by name, municipality, address or activity',
@@ -132,6 +135,7 @@ export const i18n = createI18n({
         sectionEyebrow: 'Geospatial view',
         lastSync: 'Last sync',
         filteredResults: 'Filtered results',
+        resetView: 'Reset map view',
       },
       insights: {
         title: 'Dataset overview',
