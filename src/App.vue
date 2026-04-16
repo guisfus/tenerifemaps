@@ -17,7 +17,6 @@ const { t, locale } = useI18n()
 const activeDatasetKey = ref(DATASETS[0].key)
 const selectedId = ref<string | null>(null)
 const search = ref('')
-const datasetSearch = ref('')
 const selectedMunicipality = ref('all')
 const selectedActivity = ref('all')
 const contactFilter = ref<ContactFilter>('all')
@@ -49,18 +48,9 @@ const currentDataset = computed(() => DATASETS.find((dataset) => dataset.key ===
 const datasetPresentation = computed(() => getDatasetPresentation(currentDataset.value, locale.value))
 const pageSizeOptions = [25, 50, 100]
 const filteredDatasetGroups = computed(() => {
-  const query = datasetSearch.value.trim().toLowerCase()
   const grouped = new Map<string, typeof DATASETS>()
 
   for (const dataset of DATASETS) {
-    const presentation = getDatasetPresentation(dataset, locale.value)
-    const categoryLabel = getDatasetCategoryLabel(dataset.category, locale.value)
-    const haystack = [presentation.title, presentation.description, categoryLabel].join(' ').toLowerCase()
-
-    if (query && !haystack.includes(query)) {
-      continue
-    }
-
     const bucket = grouped.get(dataset.category) ?? []
     bucket.push(dataset)
     grouped.set(dataset.category, bucket)
@@ -520,11 +510,6 @@ onMounted(() => {
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(220px,1fr)_minmax(260px,1.1fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_minmax(200px,0.9fr)_auto]">
           <label class="min-w-0 space-y-2">
             <span class="text-xs font-medium uppercase tracking-[0.2em]" :class="subtleClass">{{ t('controls.dataset') }}</span>
-            <input
-              v-model="datasetSearch"
-              :placeholder="t('controls.datasetSearchPlaceholder')"
-              :class="controlClass"
-            />
             <select
               v-model="activeDatasetKey"
               :class="controlClass"
